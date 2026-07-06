@@ -1,0 +1,20 @@
+[package]
+name = "nenkin_garden"
+version = "0.0.0"
+edition = "2021"
+description = "粘菌ガーデン 決定論シミュレーションコア (core-000)"
+
+# 規約 §11: ネットワーク不使用のため外部依存は追加しない（std のみ）。
+# PRNG も自前実装で完全決定論を担保する。
+[dependencies]
+
+[lib]
+name = "nenkin_garden"
+path = "src/lib.rs"
+
+[[bin]]
+name = "run_headless"
+path = "src/bin/run_headless.rs"
+
+[profile.release]
+opt-level = 3
