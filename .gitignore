@@ -6,3 +6,4 @@ Cargo.lock
 
 # 生成物
 metrics.json
+analysis.json

@@ -57,6 +57,12 @@ pub struct Params {
     // テスト側定数（§10）
     pub warmup_ticks: u64,
     pub eps_conserve: f64,
+
+    // --- analysis-001（効率ネットワーク解析）---
+    // 網の二値化しきいは core の連結成分と整合させるため theta_cc を共有する。
+    pub net_alpha: f64,         // 実効長 L_eff = L*(1+alpha*meanE) の標高加重
+    pub skeleton_max_iter: usize, // 細線化の安全上限
+    pub tap_min_len: f64,       // 砂糖源→最近傍ノードの tap 実効長の下限
 }
 
 impl Default for Params {
@@ -108,6 +114,10 @@ impl Default for Params {
 
             warmup_ticks: 40,
             eps_conserve: 1.0e-4,
+
+            net_alpha: 1.0,
+            skeleton_max_iter: 1000,
+            tap_min_len: 0.5,
         }
     }
 }

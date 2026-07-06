@@ -16,5 +16,9 @@ path = "src/lib.rs"
 name = "run_headless"
 path = "src/bin/run_headless.rs"
 
+[[bin]]
+name = "run_analysis"
+path = "src/bin/run_analysis.rs"
+
 [profile.release]
 opt-level = 3

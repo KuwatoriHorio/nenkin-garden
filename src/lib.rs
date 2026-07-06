@@ -7,6 +7,7 @@
 //! analysis/ render/ は本タスク対象外だが、依存方向（core ← analysis/render、逆は禁止）
 //! を守るため後付けする。core はそれらに依存しない。
 
+pub mod analysis;
 pub mod hash;
 pub mod headless;
 pub mod metrics;
@@ -16,6 +17,7 @@ pub mod state;
 pub mod step;
 pub mod world;
 
+pub use analysis::{analyze, mean_land_elevation, AnalysisMetrics, AnalysisResult};
 pub use hash::state_hash;
 pub use headless::{run_headless, RunResult};
 pub use metrics::{compute_metrics, Metrics};

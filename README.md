@@ -24,12 +24,42 @@ src/
   metrics.rs  … Stateから指標を算出（読み取りのみ, §8）
   hash.rs     … state_hash: 量子化して64bit FNV-1a（§9）
   headless.rs … run_headless エントリ（coreを呼ぶだけ, §7）
+  analysis/   … 効率ネットワーク解析（analysis-001, core を読むだけ・逆依存なし）
+    skeleton.rs … しきい化 + Zhang-Suen 細線化 + 成分保存
+    graph.rs    … 骨格→グラフ（ノード/エッジ, MST, 連結成分）
+    flow.rs     … Kirchhoff 線形系を1回解く（実効抵抗/コンダクタンス/輸送効率）
+    mod.rs      … パイプライン統合と analysis.json
   bin/run_headless.rs … CLI（metrics.json 書き出し + hash 表示）
-tests/core_000.rs … 不変条件・受け入れテスト（§10/§11, seeds=[1,42,1337]）
+  bin/run_analysis.rs … CLI（core実行→静的解析→analysis.json）
+tests/core_000.rs    … core 不変条件・受け入れテスト（§10/§11, seeds=[1,42,1337]）
+tests/analysis_001.rs … analysis 受け入れテスト（#1..#6 + 流れソルバ直接検証）
 ```
 
-`analysis/` `render/` は core-000 の対象外だが、依存方向（core ← analysis/render、
-逆は禁止）を守るため後付けする。core はそれらに依存しない。
+`render/` は今後の対象。依存方向（core ← analysis/render、逆は禁止）を守る。
+core は analysis/render に依存しない。
+
+## analysis-001: 効率ネットワーク解析（静的・裏方・非侵襲）
+
+Jones コアが育てた trail 網を Tero–Nakagaki の土俵に一度だけ乗せて効率を数値化する
+静的レイヤ。**適応則は回さない**（管の太化/細化なし）。State は読むだけ・書き換え禁止。
+同一 `state_hash` → 同一指標。
+
+- パイプライン: しきい化(theta_cc, core と共有) → 骨格抽出(Zhang-Suen) →
+  グラフ化(ノード=分岐/端点/昇格代表, エッジ=枝) → 流れを1回解く → 指標算出。
+- 出力 `analysis.json`: `nodes, edges, total_length, mst_length, redundancy,
+  total_conductance, effective_resistance, transport_efficiency, edge_mean_elevation,
+  num_cc, largest_cc, flow_connected`。
+- **transport_efficiency** は正規化エッジ流量の Herfindahl 指数 `Σ(I_e/ΣI)^2`（採用理由:
+  外生パラメータ不要・全エッジ利用・値域(0,1]が明快で「少数の幹線への集約=効率」を表す）。
+- 砂糖源は流れの端子（source=id最小 / sink=id最大）。両端が別の連結成分なら経路が無く
+  `flow_connected=false`（実効抵抗∞）＝疎な網の正直な答え。ソルバ本体は連結網の
+  制御テストで検証している。
+- `num_cc` は core の `num_cc`（同一しきい値）と一致（骨格の成分保存で担保）。
+- `edge_mean_elevation`（length加重）は陸地平均標高より低い＝ソフト忌避が網でも効く。
+
+```sh
+cargo run --release --bin run_analysis -- 42 160   # analysis.json 出力
+```
 
 ## 決定性の契約（規約 §2, 設計メモ §4）
 
