@@ -24,5 +24,9 @@ path = "src/bin/run_analysis.rs"
 name = "render_svg"
 path = "src/bin/render_svg.rs"
 
+[[bin]]
+name = "calibrate"
+path = "src/bin/calibrate.rs"
+
 [profile.release]
 opt-level = 3

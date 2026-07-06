@@ -52,3 +52,26 @@
     Kirchhoffソルバ/コンダクタンス/HHIは連結網の制御テスト
     (flow_solver_on_controlled_connected_network: R=5.0, TE=1.0)で検証。
 ```
+
+```
+- iter: 3
+  task: calib-001
+  hypothesis: v0で未確定の数値/方針(N/許容%/シード本数/golden粒度/中央値集計法)を、
+              代表シナリオの多シード実測で決定し規約に反映する（規約変更=人間承認タスク）。
+  diff_summary: |
+    src/bin/calibrate.rs 追加（core非侵襲の計測ハーネス, seeds1..=64の分布・中央値収束）。
+    loop-engineering-rules-v0.md の §4(許容%表+シード集合+中央値集計法)・§5(golden粒度)・
+    §6(N=3)・末尾節を確定値へ更新。tasks/task-calib-001.md 追加。
+  seeds: 計測1..=64 / 確定ゲート={1,7,13,42,99,256,1337,2024,31337}(奇数9本)
+  invariants: pass  # 規約更新はコード挙動を変えず既存テスト12件緑のまま
+  metrics: |
+    実測(160tick,代表シナリオ)relStd: coverage19% sugar42% max_cc40% num_cc8% tick28%。
+    中央値はcoverage/num_cc/mean_trail_loがk≈9で大標本値に一致。elev_trail_ratioは常に0(退化)。
+  goldens_updated: none
+  decision: keep
+  note: |
+    確定: N=3 / 許容%(被覆-8,砂糖-18,max_cc-18,num_cc+10warn,mean_trail_lo-12,tick+25) /
+    シード9本 / golden=hash(seedごと)+metricsベクトル / 中央値=平均でなく方向つき比較。
+    設定原理=「9本中央値の標準誤差≈relStd×0.417」以上に許容を取りノイズ誤検知を回避
+    （旧-2%/-5%は過敏だったと実測で判明）。§7遵守: テストを弱めず外部ポリシーのみ確定。
+```
