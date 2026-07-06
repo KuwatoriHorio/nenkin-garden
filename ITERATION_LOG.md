@@ -174,3 +174,25 @@
     置換。人間所有の不変条件(§3)は不変。θ_cov/θ_cc は実測で分解能十分と確認し最小変更で維持。
     analysis の num_cc==core num_cc(θ_cc共有)も維持。
 ```
+
+```
+- iter: 8
+  task: test-harness-001
+  hypothesis: 規約§4で確定した正準シード集合9本と中央値ソフトゲートを、既存テストを弱めずに
+              テストコードへ反映できる。
+  diff_summary: |
+    tests/test_harness_001.rs 追加（新規・既存は不変）。
+    Tier0: §3不変条件(有限性/保存則/境界/再現性/ソフト忌避)を S 全9本で検証。
+    Tier2: 共通ヘルパ soft_gate(方向つき Dir::{LowerWorse,HigherWorse}) で S 上の中央値を
+    baseline定数と §4許容%(-8/-18/-18/+10/+8/-12)比較。baseline は S9・160tick 実測を固定。
+  seeds: {1,7,13,42,99,256,1337,2024,31337}
+  invariants: pass  # 既存 core-000/analysis-001 は未変更で全緑。総計20テスト緑。
+  metrics: |
+    baseline(S9中央値): coverage=0.02924 sugar_rate=0.09063 max_cc=10 num_cc=52
+    elev_avoidance=0.12697 mean_trail_lo=0.05812。決定論のため現中央値=baseline(満額マージンで pass)。
+  goldens_updated: "tests/test_harness_001.rs 内 baseline 定数（新規ゴールデン=前回green中央値）"
+  decision: keep
+  note: |
+    §7遵守: 既存アサートは削除・緩和せず、被覆(3→9本)と集計法(中央値・方向つき)を追加するのみ。
+    正準集合・許容%・方向は規約§4に一致。baseline は「意図した挙動変更」時のみ理由付き更新。
+```
