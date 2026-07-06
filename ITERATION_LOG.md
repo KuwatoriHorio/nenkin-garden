@@ -75,3 +75,28 @@
     設定原理=「9本中央値の標準誤差≈relStd×0.417」以上に許容を取りノイズ誤検知を回避
     （旧-2%/-5%は過敏だったと実測で判明）。§7遵守: テストを弱めず外部ポリシーのみ確定。
 ```
+
+```
+- iter: 4
+  task: core-001
+  hypothesis: coreパラメータ既定値の調整だけで、代表シナリオの2砂糖源を同一連結成分に
+              繋げ flow_connected を頑健に成立させられる。
+  diff_summary: |
+    探索のみ（既定値の恒久変更なし）。n_init{200..1000}, diffuse{0.30..0.65},
+    sugar_beacon{12..100}, sensor_dist{4..12}, ticks{240..500} を総当りで計測。
+    診断: sugar1 のビーコン細胞が骨格で孤立1ノード成分になり(dist=0,size=1)、
+    最近傍ノードsnapがそれを拾う。sugar0 は大成分に載る→常に別成分=flow_connected不成立。
+  seeds: [1,42,1337] と 正準9本で検証
+  invariants: pass  # 既定値は無変更のため既存12テスト緑のまま（リグレッションなし）
+  metrics: |
+    連結は「若い網の一過的な橋」で不安定: 密度/ticks/beacon を上げると coverage は
+    増えるが connected は減る(2/3→1/3→0/3)。最良(n600,beacon45,diff0.55,t300)は
+    [1,42,1337]で2/3だが正準9本では2/9=そのシードへの過学習。
+  goldens_updated: none
+  decision: revert（既定値変更せず）→ §8 エスカレーション
+  note: |
+    パラメータ調整では受け入れ(頑健なflow_connected)を満たせない。障害はcoreの物理網でなく
+    analysisの砂糖源→ノードsnap規則（孤立ビーコンスパイクを拾う）。task-core-001が予告した
+    §8停止条件に該当。overfitな2/3出荷・θ_cc恣意緩和・独断のビーコン仕様変更はしない。
+    選択肢を人間に提示（analysis-002でsnap規則見直し等）。
+```
