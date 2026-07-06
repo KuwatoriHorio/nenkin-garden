@@ -33,6 +33,7 @@ pub struct Params {
     pub sugar_radius: f64,
     pub collect_rate: f64,
     pub sugar_beacon: f64,
+    pub sugar_beacon_radius: f64, // ビーコンを撒く半径（0=単一セル, >0=小ブロブで源を網に埋め込む）
     pub agent_cap_base: f64,
     pub agent_cap_slope: f64,
     pub agent_cap_max: usize,
@@ -93,6 +94,9 @@ impl Default for Params {
             sugar_radius: 3.0,
             collect_rate: 0.5,
             sugar_beacon: 6.0,
+            // core-001: 砂糖源を半径3の小ブロブで撒き、源を周囲網に埋め込む。
+            // 近接2源のブロブが拡散で融合し、代表シナリオで網が連結する（S9 で 9/9, analysis-003 前提）。
+            sugar_beacon_radius: 3.0,
             agent_cap_base: 60.0,
             agent_cap_slope: 4.0,
             agent_cap_max: 4000,

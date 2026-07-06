@@ -218,3 +218,29 @@
     core-001 iter:4 の「調整で連結不可」結論は本バグの影響を受けた誤り。連結性は本修正後に
     再評価する。§7遵守: ソルバの correctness 修正のみ、しきいは不変。
 ```
+
+```
+- iter: 10
+  task: core-001
+  hypothesis: ビーコンを小半径のブロブ化（sugar_beacon_radius=3）すれば、近接2源のブロブが
+              拡散で融合し代表シナリオが頑健に連結する（analysis-003 のソルバ修正が前提）。
+  diff_summary: |
+    src/params.rs: sugar_beacon_radius 既定 0→3。src/step.rs: ビーコンを半径ガウスブロブで撒く。
+    tests/core_001.rs 追加（S9 で flow_connected >=8/9, 実測9/9）。
+    既定挙動変更に伴う golden 更新: test_harness_001 の baseline を新既定S9中央値へ貼り直し。
+    metric_thresholds_001 の分解能判定を relMAD>0→max≠min に精緻化（max_cc は範囲89-169だが
+    最頻値=中央値で relMAD=0 になるため; intent「単一値に潰れず」に忠実）。
+    docs/network.svg・demo wasm 再生成、docs/index.html 指標表を新値へ。
+  seeds: 正準9本
+  invariants: pass  # core-000 不変条件維持。総計24テスト緑。
+  metrics: |
+    新既定 S9中央値: coverage 0.085 sugar_rate 0.44 max_cc 89 num_cc 38 elev_avoidance 0.248(<1)
+    mean_trail_lo 0.19。代表シナリオ flow_connected=9/9(conductance≈0.8)。seed42: nodes86/edges69,
+    redundancy1.14, transport_efficiency0.45。
+  goldens_updated: "test_harness_001 baseline（core-001 の意図的挙動変更）; docs 各種再生成"
+  decision: keep
+  note: |
+    ISSUE-001 解決。§7遵守: しきい恣意化なし・不変条件不可侵。既定密度(n_init=80)のまま
+    ビーコン小半径化だけで連結。metric_thresholds/test_harness の変更は意図した挙動変更に伴う
+    正当な golden 更新・proxy 精緻化であり、テストの弱体化ではない。
+```

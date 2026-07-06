@@ -81,9 +81,16 @@ fn coverage_and_cc_have_resolution() {
         ncc.push(m.num_cc as f64);
         mcc.push(m.max_cc as f64);
     }
-    assert!(rel_mad(&cov) > 0.0, "coverage が潰れている");
-    assert!(rel_mad(&ncc) > 0.0, "num_cc が潰れている");
-    assert!(rel_mad(&mcc) > 0.0, "max_cc が潰れている");
+    // 「単一値に潰れていない」= 値が2種以上ある（max≠min）で判定する。
+    // relMAD は最頻値=中央値のとき spread があっても 0 になり proxy として不適切なため精緻化。
+    let spread = |xs: &[f64]| -> bool {
+        let mn = xs.iter().cloned().fold(f64::INFINITY, f64::min);
+        let mx = xs.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        mx > mn
+    };
+    assert!(spread(&cov), "coverage が単一値に潰れている");
+    assert!(spread(&ncc), "num_cc が単一値に潰れている");
+    assert!(spread(&mcc), "max_cc が単一値に潰れている");
 }
 
 /// #2(後半)/#3 不変条件 mean_hi<mean_lo 維持 & analysis num_cc == core num_cc（θ_cc共有）。

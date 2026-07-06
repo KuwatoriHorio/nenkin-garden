@@ -137,14 +137,14 @@
     <h2>メトリクス例（seed=42, 160 ticks）</h2>
     <table>
       <tr><th>指標</th><th>値</th><th>意味</th></tr>
-      <tr><td class="k">coverage</td><td>0.0216</td><td>陸地に対する網の到達面積</td></tr>
-      <tr><td class="k">sugar_collected</td><td>9.0</td><td>回収した砂糖の累計</td></tr>
-      <tr><td class="k">biomass</td><td>7.5</td><td>= 回収 − 消費（保存則）</td></tr>
-      <tr><td class="k">n_agents</td><td>90</td><td>成長ループでエージェント増（80→90）</td></tr>
-      <tr><td class="k">num_cc</td><td>56</td><td>網の連結成分数（解析と一致）</td></tr>
-      <tr><td class="k">nodes / edges</td><td>73 / 17</td><td>抽出グラフの規模</td></tr>
-      <tr><td class="k">edge_mean_elevation</td><td>0.030</td><td>網の加重平均標高（陸地平均より低い＝忌避が効く）</td></tr>
-      <tr><td class="k">final_state_hash</td><td>0x7ae269c0…</td><td>再現性の指紋（2回一致・3シード）</td></tr>
+      <tr><td class="k">coverage</td><td>0.096</td><td>陸地に対する網の到達面積</td></tr>
+      <tr><td class="k">sugar_collected</td><td>85.0</td><td>回収した砂糖の累計</td></tr>
+      <tr><td class="k">biomass</td><td>54.9</td><td>= 回収 − 消費（保存則）</td></tr>
+      <tr><td class="k">n_agents</td><td>281</td><td>成長ループでエージェント増（80→281）</td></tr>
+      <tr><td class="k">flow_connected</td><td>true</td><td>2砂糖源が連結（conductance 0.043）</td></tr>
+      <tr><td class="k">nodes / edges</td><td>86 / 69</td><td>抽出グラフの規模（redundancy 1.14）</td></tr>
+      <tr><td class="k">edge_mean_elevation</td><td>0.063</td><td>網の加重平均標高（陸地平均 0.45 より低い＝忌避が効く）</td></tr>
+      <tr><td class="k">final_state_hash</td><td>0xbc42a7c3…</td><td>再現性の指紋（2回一致・3シード）</td></tr>
     </table>
   </section>
 

@@ -176,14 +176,42 @@ pub fn step(state: &mut State, world: &World, p: &Params, ops: &[Op]) {
     }
 
     // --- 砂糖ビーコン（残量ありの source が毎tick trailに強い誘引を加算）---
+    // sugar_beacon_radius=0 なら単一セル。>0 なら小半径のガウス状ブロブで撒き、
+    // 源を周囲網に埋め込む（孤立スパイク化を避け、tube 形成を助ける）。core-001 候補1。
+    let br = p.sugar_beacon_radius;
     for j in 0..m {
-        if state.sugar_remaining[j] > 0.0 {
-            let fx = state.sugar_x[j].floor();
-            let fy = state.sugar_y[j].floor();
+        if state.sugar_remaining[j] <= 0.0 {
+            continue;
+        }
+        let sx = state.sugar_x[j];
+        let sy = state.sugar_y[j];
+        if br <= 0.0 {
+            let (fx, fy) = (sx.floor(), sy.floor());
             if fx >= 0.0 && fx < w as f64 && fy >= 0.0 && fy < h as f64 {
-                let cix = fx as usize;
-                let ciy = fy as usize;
-                trail_write[ciy * w + cix] += p.sugar_beacon;
+                trail_write[fy as usize * w + fx as usize] += p.sugar_beacon;
+            }
+            continue;
+        }
+        // 半径 br の Euclidean 近傍へガウス減衰で加算（陸のみ・中心でピーク p.sugar_beacon）
+        let sigma = (br * 0.5).max(1e-6);
+        let ri = br.ceil() as i64;
+        let (cx, cy) = (sx.floor() as i64, sy.floor() as i64);
+        for dy in -ri..=ri {
+            for dx in -ri..=ri {
+                let d2 = (dx * dx + dy * dy) as f64;
+                if d2 > br * br {
+                    continue;
+                }
+                let (nx, ny) = (cx + dx, cy + dy);
+                if nx < 0 || nx >= w as i64 || ny < 0 || ny >= h as i64 {
+                    continue;
+                }
+                let idx = ny as usize * w + nx as usize;
+                if !world.land_mask[idx] {
+                    continue;
+                }
+                let wgt = (-d2 / (2.0 * sigma * sigma)).exp();
+                trail_write[idx] += p.sugar_beacon * wgt;
             }
         }
     }

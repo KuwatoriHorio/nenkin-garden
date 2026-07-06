@@ -111,12 +111,14 @@ fn soft_gate(name: &str, current_median: f64, baseline: f64, tol: f64, dir: Dir)
 
 // baseline（前回green中央値, S9・160tick・既定params で実測固定）。
 // 「意図した挙動変更」時のみ理由付きで更新すること（§5/§7）。
-const BASE_COVERAGE: f64 = 0.029240;
-const BASE_SUGAR_RATE: f64 = 0.090625;
-const BASE_MAX_CC: f64 = 10.0;
-const BASE_NUM_CC: f64 = 52.0;
-const BASE_ELEV_AVOIDANCE: f64 = 0.126969;
-const BASE_MEAN_TRAIL_LO: f64 = 0.058124;
+// 更新(core-001, 2026-07-07): 既定 sugar_beacon_radius 0→3（ビーコン小半径化）で網が連結・
+// 拡大し全メトリクスが変化したため、新既定の S9 中央値へ貼り直した（意図した挙動変更）。
+const BASE_COVERAGE: f64 = 0.084613;
+const BASE_SUGAR_RATE: f64 = 0.443750;
+const BASE_MAX_CC: f64 = 89.0;
+const BASE_NUM_CC: f64 = 38.0;
+const BASE_ELEV_AVOIDANCE: f64 = 0.248472;
+const BASE_MEAN_TRAIL_LO: f64 = 0.191065;
 
 #[test]
 fn tier2_metric_softgates_median_over_9_seeds() {
