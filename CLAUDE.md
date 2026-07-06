@@ -1,0 +1,1 @@
+`loop-engineering-rules-v0.md`の規約に従う。

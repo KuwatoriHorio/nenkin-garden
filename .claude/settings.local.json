@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(gh auth status)",
+      "PowerShell(git config user.name)",
+      "PowerShell(git config user.email)",
+      "PowerShell('---')",
+      "PowerShell(git add -A)"
+    ]
+  }
+}
