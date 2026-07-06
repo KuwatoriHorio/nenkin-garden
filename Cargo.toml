@@ -20,5 +20,9 @@ path = "src/bin/run_headless.rs"
 name = "run_analysis"
 path = "src/bin/run_analysis.rs"
 
+[[bin]]
+name = "render_svg"
+path = "src/bin/render_svg.rs"
+
 [profile.release]
 opt-level = 3

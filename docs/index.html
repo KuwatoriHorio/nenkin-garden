@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>粘菌ガーデン — 決定論シミュレーションコア</title>
+<meta name="description" content="Jones模型による粘菌シミュレーションの、最小・決定論・ヘッドレスな Rust 実装。自律ループ・エンジニアリング規約に沿って開発。">
+<style>
+  :root{
+    --bg:#0b1220; --panel:#121b2e; --panel2:#0f1728; --ink:#e8eef7; --muted:#9fb0c8;
+    --accent:#38f0e0; --accent2:#7cf698; --sugar:#ff5a5a; --line:#233149;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:radial-gradient(1200px 700px at 70% -10%, #16233c 0%, var(--bg) 60%);
+    color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",
+    "Hiragino Kaku Gothic ProN","Noto Sans JP",Meiryo,sans-serif; line-height:1.75;
+  }
+  a{color:var(--accent)} a:hover{color:var(--accent2)}
+  .wrap{max-width:960px;margin:0 auto;padding:0 20px}
+  header{padding:64px 0 28px;text-align:center}
+  .eyebrow{letter-spacing:.28em;font-size:.72rem;color:var(--muted);text-transform:uppercase}
+  h1{font-size:clamp(2.2rem,6vw,3.6rem);margin:.2em 0 .1em;
+     background:linear-gradient(120deg,var(--accent),var(--accent2));
+     -webkit-background-clip:text;background-clip:text;color:transparent}
+  .tagline{color:var(--muted);font-size:1.05rem;max-width:640px;margin:.4em auto 0}
+  .cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin:26px 0 8px}
+  .btn{display:inline-block;padding:10px 18px;border-radius:10px;border:1px solid var(--line);
+    background:var(--panel);color:var(--ink);text-decoration:none;font-weight:600;font-size:.95rem}
+  .btn.primary{background:linear-gradient(120deg,#1b6f68,#245c37);border-color:#2b6}
+  .btn:hover{border-color:var(--accent)}
+  figure{margin:34px 0;text-align:center}
+  .art{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:#0b1e2d;
+    box-shadow:0 20px 60px rgba(0,0,0,.45);display:inline-block;max-width:100%}
+  .art img{display:block;width:min(560px,92vw);height:auto}
+  figcaption{color:var(--muted);font-size:.86rem;margin-top:12px}
+  .legend{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;margin-top:10px;font-size:.82rem;color:var(--muted)}
+  .dot{display:inline-block;width:11px;height:11px;border-radius:3px;vertical-align:middle;margin-right:6px}
+  section{margin:40px 0}
+  h2{font-size:1.5rem;border-left:3px solid var(--accent);padding-left:.6em;margin:0 0 .6em}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px}
+  .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);
+    border-radius:14px;padding:18px 20px}
+  .card h3{margin:.1em 0 .4em;font-size:1.05rem;color:var(--accent2)}
+  .card p{margin:0;color:var(--muted);font-size:.92rem}
+  table{width:100%;border-collapse:collapse;font-size:.92rem;background:var(--panel2);
+    border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th,td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:600;background:#0d1626}
+  td.k{color:var(--accent);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  tr:last-child td{border-bottom:none}
+  .pipe{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:.4em 0;color:var(--muted)}
+  .pipe span{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:.86rem;color:var(--ink)}
+  .arrow{color:var(--accent)}
+  code{background:#0d1626;border:1px solid var(--line);border-radius:6px;padding:.1em .45em;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.88em;color:var(--accent2)}
+  pre{background:#0d1626;border:1px solid var(--line);border-radius:12px;padding:16px 18px;overflow:auto}
+  pre code{background:none;border:none;padding:0;color:var(--ink)}
+  ul.tight{margin:.3em 0;padding-left:1.2em} ul.tight li{margin:.2em 0;color:var(--muted)}
+  footer{border-top:1px solid var(--line);margin-top:56px;padding:26px 0 60px;color:var(--muted);font-size:.85rem;text-align:center}
+  .note{color:var(--muted);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">Deterministic · Headless · Rust</div>
+    <h1>粘菌ガーデン</h1>
+    <p class="tagline">
+      Jones 模型（trail マップ + 拡散・減衰）で粘菌の網を育てる、
+      <b>最小・決定論・ヘッドレス</b>なシミュレーションコア。
+      砂糖を置くと網が伸び、標高をソフトに避けながら島々に広がる。
+    </p>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/KuwatoriHorio/nenkin-garden">GitHub リポジトリ</a>
+      <a class="btn" href="https://github.com/KuwatoriHorio/nenkin-garden/blob/main/tasks/design-memo-core-000.md">設計メモ</a>
+      <a class="btn" href="https://github.com/KuwatoriHorio/nenkin-garden/blob/main/loop-engineering-rules-v0.md">開発規約</a>
+    </div>
+  </header>
+
+  <figure>
+    <div class="art"><img src="network.svg" alt="粘菌ガーデンの trail 網と抽出された骨格（seed=42, 160 ticks）"></div>
+    <div class="legend">
+      <span><span class="dot" style="background:#7cf698"></span>trail 網（誘引物質）</span>
+      <span><span class="dot" style="background:#38f0e0"></span>抽出された骨格</span>
+      <span><span class="dot" style="background:#ff5a5a;border-radius:50%"></span>砂糖源</span>
+      <span><span class="dot" style="background:#0b1e2d"></span>海</span>
+    </div>
+    <figcaption>実際のヘッドレス実行の終端状態（seed=42, 160 ticks）。決定論コアなので、この絵は state から一意に決まる。</figcaption>
+  </figure>
+
+  <section>
+    <h2>これは何？</h2>
+    <p>
+      仮想の日本列島（陸海マスク + 標高場 E）の上で、多数のエージェントが
+      誘引物質（trail）を残しながら歩き、拡散・減衰する場と相互作用して網を作る。
+      プレイヤーの動詞は「砂糖を置く／取り除く」だけ。砂糖に到達するとバイオマスが増え、
+      エージェント上限が上がり、網がさらに広がる——という園芸・観察型のモデル。
+    </p>
+    <p>
+      壁は作らない。高標高は<b>ソフトに避ける</b>（① 感知ペナルティ ② 傾斜コスト
+      ③ 定着差 ④ 減衰差 の4系統）。だから網は自然と低地を選んで伸びていく。
+    </p>
+  </section>
+
+  <section>
+    <h2>決定論コアを「正」とする</h2>
+    <div class="grid">
+      <div class="card"><h3>純関数の遷移</h3><p><code>step(state, world, params, rng) → state'</code>。同一 (初期状態, 入力列, params, seed) は必ず同一の最終状態とハッシュを生む。</p></div>
+      <div class="card"><h3>単一 PRNG</h3><p>乱数は state 内の単一シード付き PRNG（xoshiro256** 自前実装）のみ。壁時計や反復順など非決定的入力を遷移に使わない。</p></div>
+      <div class="card"><h3>描画は分離</h3><p>描画は state を読むだけ。描画 ON/OFF で <code>final_state_hash</code> は変わらない。この絵も「読むだけ」の派生。</p></div>
+      <div class="card"><h3>ヘッドレス実行</h3><p><code>run_headless(seed, input_script, ticks)</code> が <code>metrics.json</code> と <code>final_state_hash</code> を出力。CI で回せる。</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>効率ネットワーク解析（裏方・非侵襲）</h2>
+    <p class="note">育った trail 網を Tero–Nakagaki の土俵に一度だけ乗せ、効率を数値化する静的レイヤ。適応則は回さない。State は読むだけ。</p>
+    <div class="pipe">
+      <span>しきい化</span><span class="arrow">→</span>
+      <span>骨格抽出 (Zhang-Suen)</span><span class="arrow">→</span>
+      <span>グラフ化</span><span class="arrow">→</span>
+      <span>流れを1回解く (Kirchhoff)</span><span class="arrow">→</span>
+      <span>指標算出</span>
+    </div>
+    <p>
+      冗長度（total_length / mst_length）、コンダクタンス、輸送効率
+      （正規化エッジ流量の Herfindahl 指数）、エッジ加重平均標高などを
+      <code>analysis.json</code> に出力する。連結成分数は決定論コアの指標と一致する。
+    </p>
+  </section>
+
+  <section>
+    <h2>メトリクス例（seed=42, 160 ticks）</h2>
+    <table>
+      <tr><th>指標</th><th>値</th><th>意味</th></tr>
+      <tr><td class="k">coverage</td><td>0.0216</td><td>陸地に対する網の到達面積</td></tr>
+      <tr><td class="k">sugar_collected</td><td>9.0</td><td>回収した砂糖の累計</td></tr>
+      <tr><td class="k">biomass</td><td>7.5</td><td>= 回収 − 消費（保存則）</td></tr>
+      <tr><td class="k">n_agents</td><td>90</td><td>成長ループでエージェント増（80→90）</td></tr>
+      <tr><td class="k">num_cc</td><td>56</td><td>網の連結成分数（解析と一致）</td></tr>
+      <tr><td class="k">nodes / edges</td><td>73 / 17</td><td>抽出グラフの規模</td></tr>
+      <tr><td class="k">edge_mean_elevation</td><td>0.030</td><td>網の加重平均標高（陸地平均より低い＝忌避が効く）</td></tr>
+      <tr><td class="k">final_state_hash</td><td>0x7ae269c0…</td><td>再現性の指紋（2回一致・3シード）</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>試す</h2>
+    <pre><code># GNU ツールチェインで（自己完結リンカ）
+cargo +stable-x86_64-pc-windows-gnu test          # 不変条件+受け入れテスト
+cargo run --release --bin run_headless -- 42 160  # metrics.json + hash
+cargo run --release --bin run_analysis -- 42 160  # analysis.json
+cargo run --release --bin render_svg  -- 42 160   # この絵を生成</code></pre>
+    <ul class="tight">
+      <li>外部クレート依存ゼロ（<code>std</code> のみ）。PRNG も自前実装で完全決定論。</li>
+      <li>受け入れテスト計 12 件緑（core-000: 5 / analysis-001: 7、seeds = [1, 42, 1337]）。</li>
+      <li>開発は「コード変更 → テスト → 修正」を反復する<a href="https://github.com/KuwatoriHorio/nenkin-garden/blob/main/loop-engineering-rules-v0.md">自律ループ規約</a>に準拠。</li>
+    </ul>
+  </section>
+
+  <footer>
+    粘菌ガーデン — 決定論シミュレーションコア（core-000 / analysis-001）<br>
+    Rust · std only · MIT を想定 ·
+    <a href="https://github.com/KuwatoriHorio/nenkin-garden">github.com/KuwatoriHorio/nenkin-garden</a>
+  </footer>
+
+</div>
+</body>
+</html>
