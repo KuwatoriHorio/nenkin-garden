@@ -77,7 +77,7 @@
 | 回収砂糖レート | 単位時間あたり回収量 | 基準比 **−18%** 以内 | relStd 42% → SE≈18%（高分散） |
 | 最大連結成分サイズ | 網の一体性 | 基準比 **−18%** 以内 | relStd 40% → SE≈17%（高分散） |
 | 連結成分数 | 断片化の指標 | 増加 **+10%** 超で要注意(warn) | relStd 8%（安定） |
-| 標高別trail分布 | 忌避の健康診断 | ハード=不変条件 mean_hi<mean_lo(§3)。ソフト= mean_trail_lo −12% 以内 かつ elev_trail_ratio ≤ 基準+0.02 | ratio は本シナリオで 0 近傍が正常 |
+| 忌避の健康診断 | 網が低標高に偏るか | ハード=不変条件 mean_hi<mean_lo(§3)。ソフト= **elev_avoidance** 基準比 **+8%** 超で悪化(warn) かつ mean_trail_lo −12% 以内 | metric-thresholds-001: elev_trail_ratio は退化(常に0)のため trail 加重平均標高/陸地平均 の比 elev_avoidance へ変更。med≈0.13, relStd 5.4% → SE≈2.3% |
 | 1ティック処理時間 | 性能退行 | 基準比 **+25%** 以内（性能予算） | relStd 28%・裾重い・機械依存 |
 
 ### 複数シード中央値の集計法（calib-001 で確定）

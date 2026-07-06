@@ -150,3 +150,27 @@
     を導入。決定性は core と同一コードのため native test で担保（三角関数実装差で native と
     wasm のビット一致は §2 上要求しない=同一ビルド内再現性）。デモは docs/demo/ で Pages 公開。
 ```
+
+```
+- iter: 7
+  task: metric-thresholds-001
+  hypothesis: 退化した忌避健全性指標(elev_trail_ratio 常に0)を、常に定義される連続指標へ
+              見直し、θ_cov/θ_cc は分解能を検証のうえ維持する。
+  diff_summary: |
+    src/metrics.rs に trail_weighted_mean_elevation / land_mean_elevation / elev_avoidance
+    を追加（Σtrail·E / Σtrail と 陸地平均Eの比）。to_json 更新。src/bin/calibrate.rs に新指標。
+    規約 §4 の健全性行を elev_trail_ratio → elev_avoidance に見直し(+8%でwarn)。
+    tests/metric_thresholds_001.rs 追加。θ_cov/θ_cc は変更せず（分解能十分と実測確認）。
+  seeds: 正準9本 + calibrate 1..=32
+  invariants: pass  # §3 不変条件(mean_hi<mean_lo)は不可侵のまま。既存18テスト緑
+  metrics: |
+    実測(160tick,代表シナリオ): elev_trail_ratio min=med=max=0(退化を確認)。
+    新 elev_avoidance med=0.126(<1=忌避が効く), relMAD 4.4%(連続・非退化)。
+    coverage/max_cc/num_cc relMAD=10%/18%/2.9%(分解能あり=θは維持で妥当)。
+  goldens_updated: "loop-engineering-rules-v0.md §4 健全性行: 退化指標を elev_avoidance へ（理由=退化是正）"
+  decision: keep
+  note: |
+    §7遵守: しきいを緩めるのでなく、退化して情報量ゼロだった健全性指標を非退化の連続指標へ
+    置換。人間所有の不変条件(§3)は不変。θ_cov/θ_cc は実測で分解能十分と確認し最小変更で維持。
+    analysis の num_cc==core num_cc(θ_cc共有)も維持。
+```

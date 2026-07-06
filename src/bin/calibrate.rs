@@ -86,6 +86,8 @@ fn main() {
     let mut max_cc = Vec::new();
     let mut num_cc = Vec::new();
     let mut elev_ratio = Vec::new();
+    let mut twe = Vec::new();
+    let mut avoid = Vec::new();
     let mut mean_lo = Vec::new();
     let mut tick_ms = Vec::new();
 
@@ -97,6 +99,8 @@ fn main() {
         max_cc.push(m.max_cc as f64);
         num_cc.push(m.num_cc as f64);
         elev_ratio.push(m.elev_trail_ratio);
+        twe.push(m.trail_weighted_mean_elevation);
+        avoid.push(m.elev_avoidance);
         mean_lo.push(m.mean_trail_lo);
         tick_ms.push(r.metrics.tick_ms);
     }
@@ -107,7 +111,9 @@ fn main() {
     stats("sugar_rate", &sugar_rate);
     stats("max_cc", &max_cc);
     stats("num_cc", &num_cc);
-    stats("elev_trail_ratio", &elev_ratio);
+    stats("elev_trail_ratio", &elev_ratio); // 退化: 常に0（高標高帯に網が届かない）
+    stats("trail_w_mean_elev", &twe);       // 健全性(新): 常に定義される連続値
+    stats("elev_avoidance", &avoid);        // 健全性(新): <1 で忌避が効く
     stats("mean_trail_lo", &mean_lo);
     stats("tick_ms", &tick_ms);
 

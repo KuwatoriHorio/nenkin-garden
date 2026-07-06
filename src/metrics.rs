@@ -18,6 +18,12 @@ pub struct Metrics {
     pub mean_trail_hi: f64,
     pub mean_trail_lo: f64,
     pub elev_trail_ratio: f64,
+    // 忌避の健全性（metric-thresholds-001）: 固定帯 E_hi/E_lo に依存する elev_trail_ratio は
+    // 高標高帯に網が届かないと 0 に退化する。代わりに trail 加重平均標高（常に定義される連続値）と
+    // 陸地平均標高との比 elev_avoidance を健全性シグナルとする（<1 なら網が低標高に偏る＝忌避）。
+    pub trail_weighted_mean_elevation: f64,
+    pub land_mean_elevation: f64,
+    pub elev_avoidance: f64,
     pub tick_ms: f64,
 }
 
@@ -27,7 +33,9 @@ impl Metrics {
         format!(
             "{{\"coverage\":{},\"sugar_collected\":{},\"consumed_total\":{},\
 \"biomass\":{},\"n_agents\":{},\"max_cc\":{},\"num_cc\":{},\
-\"mean_trail_hi\":{},\"mean_trail_lo\":{},\"elev_trail_ratio\":{},\"tick_ms\":{}}}",
+\"mean_trail_hi\":{},\"mean_trail_lo\":{},\"elev_trail_ratio\":{},\
+\"trail_weighted_mean_elevation\":{},\"land_mean_elevation\":{},\"elev_avoidance\":{},\
+\"tick_ms\":{}}}",
             self.coverage,
             self.sugar_collected,
             self.consumed_total,
@@ -38,6 +46,9 @@ impl Metrics {
             self.mean_trail_hi,
             self.mean_trail_lo,
             self.elev_trail_ratio,
+            self.trail_weighted_mean_elevation,
+            self.land_mean_elevation,
+            self.elev_avoidance,
             self.tick_ms,
         )
     }
@@ -154,12 +165,19 @@ pub fn compute_metrics(s: &State, world: &World, p: &Params) -> Metrics {
     let mut cnt_hi = 0usize;
     let mut sum_lo = 0.0;
     let mut cnt_lo = 0usize;
+    // 忌避の健全性（退化しない連続指標）: trail 加重平均標高 と 陸地平均標高
+    let mut tw_sum = 0.0; // Σ trail·E
+    let mut t_sum = 0.0; // Σ trail
+    let mut e_sum = 0.0; // Σ E（陸）
     for i in 0..h * w {
         if !world.land_mask[i] {
             continue;
         }
         let e = world.e[i] as f64;
         let t = s.trail[i] as f64;
+        tw_sum += t * e;
+        t_sum += t;
+        e_sum += e;
         if e >= p.e_hi {
             sum_hi += t;
             cnt_hi += 1;
@@ -173,6 +191,15 @@ pub fn compute_metrics(s: &State, world: &World, p: &Params) -> Metrics {
     let mean_lo = if cnt_lo > 0 { sum_lo / cnt_lo as f64 } else { 0.0 };
     let elev_trail_ratio = if mean_lo > 0.0 { mean_hi / mean_lo } else { 0.0 };
 
+    let land_mean_elevation = if n_land > 0 { e_sum / n_land as f64 } else { 0.0 };
+    let trail_weighted_mean_elevation = if t_sum > 0.0 { tw_sum / t_sum } else { 0.0 };
+    // <1 なら網が陸地平均より低標高に偏る＝ソフト忌避が効いている（常に定義される連続値）。
+    let elev_avoidance = if land_mean_elevation > 0.0 {
+        trail_weighted_mean_elevation / land_mean_elevation
+    } else {
+        0.0
+    };
+
     Metrics {
         coverage,
         sugar_collected: s.collected_total,
@@ -184,6 +211,9 @@ pub fn compute_metrics(s: &State, world: &World, p: &Params) -> Metrics {
         mean_trail_hi: mean_hi,
         mean_trail_lo: mean_lo,
         elev_trail_ratio,
+        trail_weighted_mean_elevation,
+        land_mean_elevation,
+        elev_avoidance,
         tick_ms: 0.0,
     }
 }
