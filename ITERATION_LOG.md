@@ -196,3 +196,25 @@
     §7遵守: 既存アサートは削除・緩和せず、被覆(3→9本)と集計法(中央値・方向つき)を追加するのみ。
     正準集合・許容%・方向は規約§4に一致。baseline は「意図した挙動変更」時のみ理由付き更新。
 ```
+
+```
+- iter: 9
+  task: analysis-003
+  hypothesis: flow ソルバが浮遊成分で特異化し連結を偽陰性にしている。source/sink 成分だけを
+              解けば正しく connected を報告できる。
+  diff_summary: |
+    src/analysis/flow.rs: 縮約 Laplacian の対象を「全ノード−sink」から
+    「source/sink を含む拡張成分のノード−sink」に限定（他の浮遊成分を除外し特異化回避）。
+    tests/analysis_003.rs 追加（浮遊成分ありで connected / 真の別成分は false / 決定性）。
+  seeds: 制御シナリオ + [1,42,1337]
+  invariants: pass  # core非変更。既存 analysis_001(R=5.0)/002 と全体緑。
+  metrics: |
+    重大バグ: 従来は網が多成分(num_cc≈50)だと Laplacian が特異→常に flow_connected=false。
+    過去の 0/9 計測は偽陰性だった。修正後、代表シナリオで点ビーコンは真に 0/9、
+    ビーコン小半径化(radius=3)で 9/9(conductance≈0.8) を確認。
+  goldens_updated: none
+  decision: keep
+  note: |
+    core-001 iter:4 の「調整で連結不可」結論は本バグの影響を受けた誤り。連結性は本修正後に
+    再評価する。§7遵守: ソルバの correctness 修正のみ、しきいは不変。
+```

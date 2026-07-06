@@ -186,8 +186,13 @@ pub fn solve(
         };
     }
 
-    // sink を接地（電位0）: sink 行/列を除いた縮約系を解く
-    let mut map: Vec<usize> = (0..ntot).filter(|&i| i != sink).collect();
+    // sink を接地（電位0）: source/sink を含む拡張成分のノードだけで縮約系を解く。
+    // 全ノードを含めると、source/sink と非連結な多数の浮遊成分が Laplacian を特異にして
+    // 解が得られず（従来は誤って connected=false を返していた）。当該成分に限定して解く。
+    let root = uf_find(&mut uf, source);
+    let mut map: Vec<usize> = (0..ntot)
+        .filter(|&i| i != sink && uf_find(&mut uf, i) == root)
+        .collect();
     let m = map.len();
     let mut a = vec![vec![0.0f64; m]; m];
     let mut b = vec![0.0f64; m];
