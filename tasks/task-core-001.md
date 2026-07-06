@@ -4,6 +4,9 @@
 **前提**: `core-000`（決定論コア）と `analysis-001`（効率ネットワーク解析）が完了し、
 両者の受け入れテストが全通過していること。
 
+> **状態: §8 停止中** — パラメータ調整では頑健に連結できないと判明（[ITERATION_LOG](../ITERATION_LOG.md) iter:4）。
+> 詳細と候補は [KNOWN_ISSUES.md#issue-001](../KNOWN_ISSUES.md) を参照。関連: [analysis-002](task-analysis-002.md)（snapアーティファクトは解消済み）。
+
 ---
 
 ## 背景（なぜこのタスクか）
