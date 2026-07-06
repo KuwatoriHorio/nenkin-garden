@@ -100,3 +100,27 @@
     §8停止条件に該当。overfitな2/3出荷・θ_cc恣意緩和・独断のビーコン仕様変更はしない。
     選択肢を人間に提示（analysis-002でsnap規則見直し等）。
 ```
+
+```
+- iter: 5
+  task: analysis-002
+  hypothesis: 砂糖源→端子snapを「半径内の近傍網への多tap＋拡張グラフでの連結判定」に
+              変えれば、孤立ビーコンスパイクに吸着せず近傍の実ネットワークに接続できる。
+  diff_summary: |
+    src/analysis/flow.rs のみ変更（core非変更・非侵襲）。単一最近傍snap→半径 tap_radius 内
+    の全骨格ノードへ多tap（無ければ最近傍1点フォールバック）。連結判定を node_comp比較
+    から拡張グラフ（骨格エッジ+tapエッジ）の union-find 実接続へ。Params に tap_radius(=4.0)。
+    tests/analysis_002.rs 追加。
+  seeds: 制御シナリオ + 正準9本
+  invariants: pass  # core無変更。既存 core-000/analysis-001 全緑（制御連結テスト R=5.0 も維持）
+  metrics: |
+    新テスト3件緑（近傍網へ接続=修正で true / 過剰連結防止=離れた網は false / 決定性・非侵襲）。
+    tap_radius=4.0 strict のため analysis-001 の R=5.0 制御テストは不変。
+  goldens_updated: none
+  decision: keep
+  note: |
+    analysis-002 は完了（アーティファクト=孤立スパイク吸着 を修正）。ただし代表シナリオ
+    (2源 距離7.2)は依然 0/9〜2/9=連結せず。これは snap の誤りでなく「本体網が sugar1 の
+    半径内に届いていない=gap が実在」と確認できた（radius を恣意的に広げるのは §7 違反）。
+    → core-001 の「本物の橋を core が育てる」問題は未解決のまま残る（要 人間判断）。
+```

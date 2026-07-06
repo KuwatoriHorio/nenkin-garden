@@ -113,22 +113,69 @@ pub fn solve(
         skel_conds.push((e.a, e.b, gc));
     }
 
-    // 砂糖ノードの tap エッジ
-    let mut sugar_comp = vec![usize::MAX; nsug]; // 対応骨格ノードの成分
+    // 砂糖ノードの tap: 半径内の全骨格ノードへ接続（無ければ最近傍1点にフォールバック）。
+    // 唯一の最近傍でなく近傍網全体へ繋ぐことで、孤立ビーコンスパイクに吸着せず
+    // 近傍の実ネットワークに接続する（analysis-002）。走査は node id 昇順で正準。
+    let mut tap_edges: Vec<(usize, usize)> = Vec::new();
     for (k, &si) in order.iter().enumerate() {
         let sug_node = ns + k;
-        if let Some((nn, dist)) = nearest_node(state.sugar_x[si], state.sugar_y[si]) {
-            let l_eff = dist.max(p.tap_min_len);
-            let gc = 1.0 / l_eff;
+        let (sx, sy) = (state.sugar_x[si], state.sugar_y[si]);
+        let mut within: Vec<(usize, f64)> = Vec::new();
+        for (nid, &pix) in g.node_px.iter().enumerate() {
+            let ny = (pix / world.w) as f64 + 0.5;
+            let nx = (pix % world.w) as f64 + 0.5;
+            let d = ((nx - sx).powi(2) + (ny - sy).powi(2)).sqrt();
+            if d < p.tap_radius {
+                within.push((nid, d));
+            }
+        }
+        if within.is_empty() {
+            if let Some((nn, dist)) = nearest_node(sx, sy) {
+                within.push((nn, dist));
+            }
+        }
+        for (nn, dist) in within {
+            let gc = 1.0 / dist.max(p.tap_min_len);
             add_cond(&mut lap, sug_node, nn, gc);
-            sugar_comp[k] = g.node_comp[nn];
+            tap_edges.push((sug_node, nn));
         }
     }
 
     let source = ns; // 砂糖 id 最小
     let sink = ntot - 1; // 砂糖 id 最大
-    let connected = sugar_comp[0] != usize::MAX
-        && sugar_comp[0] == sugar_comp[nsug - 1];
+
+    // 連結判定は拡張グラフ（骨格エッジ + tap エッジ）の実接続で行う（union-find, 決定的）。
+    fn uf_find(uf: &mut [usize], a: usize) -> usize {
+        let mut r = a;
+        while uf[r] != r {
+            r = uf[r];
+        }
+        let mut c = a;
+        while uf[c] != r {
+            let nx = uf[c];
+            uf[c] = r;
+            c = nx;
+        }
+        r
+    }
+    fn uf_union(uf: &mut [usize], a: usize, b: usize) {
+        let (ra, rb) = (uf_find(uf, a), uf_find(uf, b));
+        if ra != rb {
+            if ra < rb {
+                uf[rb] = ra;
+            } else {
+                uf[ra] = rb;
+            }
+        }
+    }
+    let mut uf: Vec<usize> = (0..ntot).collect();
+    for e in &g.edges {
+        uf_union(&mut uf, e.a, e.b);
+    }
+    for &(s, n) in &tap_edges {
+        uf_union(&mut uf, s, n);
+    }
+    let connected = uf_find(&mut uf, source) == uf_find(&mut uf, sink);
 
     if !connected {
         return FlowResult {
