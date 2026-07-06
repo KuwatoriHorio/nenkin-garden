@@ -41,10 +41,11 @@ canvas に描画。キャンバスのクリック座標をセルへ写像して 
 ## constraints
 - **core を変更しない・逆依存禁止**（設計メモ §2）。core・決定性契約（§2）・不変条件（§3）は不変。
 - **描画ON/OFFで `state_hash` 不変**。render/入力は副作用として State を書き換えない。
-- **外部依存/ネットワーク（§11 の判断事項）**: 現行方針は「std のみ・外部クレートなし・
-  ネットワーク不使用」。既定は **外部クレートなしの手書き wasm**（`wasm32-unknown-unknown`
-  で関数を export、JS がリニアメモリを読んで canvas に描画）を推奨。`wasm-bindgen`/`web-sys`
-  等の採用は外部依存追加＝**§8 で人間承認**が必要。
+- **外部依存/ネットワーク（§11・§8 決定済み 2026-07-07）**: **`wasm-bindgen` 採用を人間が承認**。
+  ただし **core crate（`nenkin_garden`）は外部依存ゼロ・std のみを維持**する。wasm-bindgen /
+  js-sys / web-sys に依存するのは**別クレート `render-wasm`（core lib に依存）**に閉じ込め、
+  `core ← render` の一方向依存を保つ。この relax は render レイヤ限定で、core の決定性・
+  非依存性の契約は不変。crate 取得とビルドツール導入のためのネットワーク使用も render に限り許可。
 - 砂糖配置は既存 op（`place_sugar/remove_sugar`）を使い **tick 境界で適用**（同一操作列 →
   同一挙動）。しきい/パラメータは params 集約。
 

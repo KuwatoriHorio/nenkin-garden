@@ -1,0 +1,17 @@
+[package]
+name = "render-wasm"
+version = "0.0.0"
+edition = "2021"
+description = "粘菌ガーデン ブラウザ対話デモ (render-001, WASM)"
+
+# core lib に依存し、逆依存しない（core ← render の一方向, 設計メモ §2）。
+# 外部依存(wasm-bindgen)はこの render クレートに閉じ込め、core は std のみを維持する。
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+nenkin_garden = { path = ".." }
+wasm-bindgen = "0.2"
+
+[profile.release]
+opt-level = "s"

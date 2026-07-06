@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>粘菌ガーデン — 対話デモ (WASM)</title>
+<style>
+  :root{--bg:#0b1220;--panel:#121b2e;--ink:#e8eef7;--muted:#9fb0c8;--accent:#38f0e0;--line:#233149;}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1000px 600px at 70% -10%,#16233c,#0b1220 60%);
+    color:var(--ink);font-family:-apple-system,"Segoe UI","Noto Sans JP",Meiryo,sans-serif;line-height:1.6}
+  .wrap{max-width:760px;margin:0 auto;padding:24px 16px 60px}
+  h1{font-size:1.7rem;margin:.2em 0;background:linear-gradient(120deg,#38f0e0,#7cf698);
+     -webkit-background-clip:text;background-clip:text;color:transparent}
+  p.sub{color:var(--muted);margin:.2em 0 1em}
+  .stage{display:flex;justify-content:center}
+  canvas{background:#0b1e2d;border:1px solid var(--line);border-radius:12px;
+    image-rendering:pixelated;width:min(520px,92vw);height:auto;aspect-ratio:1/1;cursor:crosshair;
+    box-shadow:0 16px 48px rgba(0,0,0,.45)}
+  .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;margin:16px 0}
+  button{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:9px;
+    padding:8px 14px;font-weight:600;cursor:pointer;font-size:.92rem}
+  button:hover{border-color:var(--accent)}
+  button.primary{background:linear-gradient(120deg,#1b6f68,#245c37);border-color:#2b6}
+  input[type=range]{accent-color:var(--accent)}
+  .stat{color:var(--muted);font-size:.85rem;font-family:ui-monospace,Consolas,monospace}
+  .hint{color:var(--muted);font-size:.86rem;text-align:center;margin-top:8px}
+  a{color:var(--accent)}
+  .legend{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;color:var(--muted);font-size:.8rem;margin-top:6px}
+  .dot{display:inline-block;width:10px;height:10px;border-radius:3px;vertical-align:middle;margin-right:5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>粘菌ガーデン — 対話デモ</h1>
+  <p class="sub">決定論コアを WebAssembly で実行。<b>キャンバスをクリックして砂糖を置く</b>と、
+    粘菌の網がそこへ伸びていきます。右クリックで砂糖を取り除きます。</p>
+
+  <div class="stage"><canvas id="cv" width="96" height="96"></canvas></div>
+  <div class="legend">
+    <span><span class="dot" style="background:#7cf698"></span>trail 網</span>
+    <span><span class="dot" style="background:#ff5a5a;border-radius:50%"></span>砂糖源</span>
+    <span><span class="dot" style="background:#0b1e2d"></span>海</span>
+  </div>
+
+  <div class="bar">
+    <button id="play" class="primary">⏸ 停止</button>
+    <label class="stat">速度 <input id="speed" type="range" min="1" max="120" value="30"> <span id="spd">30</span>/s</label>
+    <button id="reset">↺ リセット</button>
+    <label class="stat">seed <input id="seed" type="number" value="42" style="width:5em"></label>
+  </div>
+  <div class="bar stat">
+    <span>tick: <b id="tick">0</b></span>
+    <span>砂糖: <b id="sugars">0</b></span>
+    <span>state_hash: <b id="hash">—</b></span>
+  </div>
+  <p class="hint">左クリック=砂糖を置く / 右クリック=取り除く &nbsp;·&nbsp;
+    <a href="../index.html">← プロジェクトのトップへ</a></p>
+</div>
+
+<script type="module">
+import init, { Sim } from './render_wasm.js';
+
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const off = document.createElement('canvas');       // グリッド解像度のオフスクリーン
+let octx, wasm, sim, W, H;
+let playing = true, speed = 30, acc = 0, last = 0;
+const STRENGTH = 350.0, REMOVE_RADIUS = 3.0;
+
+function fresh(seed){
+  sim = new Sim(seed >>> 0);
+  W = sim.width(); H = sim.height();
+  off.width = W; off.height = H;
+  octx = off.getContext('2d');
+  cv.width = W; cv.height = H;         // 内部解像度=グリッド, CSS で拡大(pixelated)
+}
+
+function draw(){
+  sim.render();
+  const ptr = sim.pixels_ptr();
+  const len = sim.pixels_len();
+  const buf = new Uint8ClampedArray(wasm.memory.buffer, ptr, len); // 毎フレーム再取得(メモリ成長対策)
+  const img = new ImageData(new Uint8ClampedArray(buf), W, H);     // コピーして ImageData 化
+  octx.putImageData(img, 0, 0);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(off, 0, 0);
+
+  // 砂糖源(赤点)
+  const s = sim.sugar_positions();
+  ctx.fillStyle = '#ff5a5a'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 0.4;
+  for(let i=0;i<s.length;i+=2){
+    ctx.beginPath(); ctx.arc(s[i], s[i+1], 1.6, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  }
+  document.getElementById('tick').textContent = sim.tick();
+  document.getElementById('sugars').textContent = s.length/2;
+  document.getElementById('hash').textContent = sim.state_hash_hex();
+}
+
+function loop(ts){
+  if(!last) last = ts;
+  const dt = (ts - last)/1000; last = ts;
+  if(playing){
+    acc += dt * speed;
+    let n = 0;
+    while(acc >= 1 && n < 400){ sim.step(); acc -= 1; n++; }
+  }
+  draw();
+  requestAnimationFrame(loop);
+}
+
+function cellFromEvent(e){
+  const r = cv.getBoundingClientRect();
+  return { cx: e.clientX - r.left, cy: e.clientY - r.top, cw: r.width, ch: r.height };
+}
+
+cv.addEventListener('click', e=>{
+  const {cx,cy,cw,ch} = cellFromEvent(e);
+  sim.place_sugar_at_canvas(cx, cy, cw, ch, STRENGTH);
+});
+cv.addEventListener('contextmenu', e=>{
+  e.preventDefault();
+  const {cx,cy,cw,ch} = cellFromEvent(e);
+  sim.remove_sugar_at_canvas(cx, cy, cw, ch, REMOVE_RADIUS);
+});
+
+document.getElementById('play').addEventListener('click', e=>{
+  playing = !playing;
+  e.target.textContent = playing ? '⏸ 停止' : '▶ 再生';
+});
+document.getElementById('speed').addEventListener('input', e=>{
+  speed = +e.target.value; document.getElementById('spd').textContent = speed;
+});
+document.getElementById('reset').addEventListener('click', ()=>{
+  const seed = +document.getElementById('seed').value || 0;
+  fresh(seed);
+});
+
+init().then(w=>{
+  wasm = w;
+  fresh(+document.getElementById('seed').value || 42);
+  requestAnimationFrame(loop);
+});
+</script>
+</body>
+</html>

@@ -124,3 +124,29 @@
     半径内に届いていない=gap が実在」と確認できた（radius を恣意的に広げるのは §7 違反）。
     → core-001 の「本物の橋を core が育てる」問題は未解決のまま残る（要 人間判断）。
 ```
+
+```
+- iter: 6
+  task: render-001
+  hypothesis: coreをwasm化し、State を読むだけの render レイヤでブラウザ描画＋クリックで
+              砂糖を置ける対話デモを作れる。core は不変・非侵襲。
+  diff_summary: |
+    ワークスペース化（Cargo.toml に [workspace], default-members=["."]）。新クレート
+    render-wasm（cdylib+rlib, deps=wasm-bindgen, core lib に依存）。Sim: new/step/render/
+    place_sugar_at_canvas/remove_sugar_at_canvas/pixels_ptr/state_hash_hex。canvas_to_cell は
+    純関数（native test）。docs/demo/（index.html + 生成 render_wasm.js/_bg.wasm）。
+    docs/index.html にデモ導線。.claude/launch.json（ローカル配信）。
+  seeds: [42 等]（決定性は native test で確認）
+  invariants: pass  # core無変更。core 15テスト + render-wasm 2テスト = 17 緑
+  metrics: |
+    ブラウザ実測: wasm 読込・描画・アニメ(tick進行)・クリックで砂糖設置・state_hash 表示 OK
+    （preview で視覚確認）。§8決定: wasm-bindgen 採用（core汚染を避け別crateに隔離）。
+  goldens_updated: none
+  decision: keep
+  note: |
+    §8決定に基づき wasm-bindgen 採用。core crate は std のみ・外部依存ゼロを維持（依存は
+    render-wasm に隔離＝core←render 一方向）。GNU toolchain を D:\Claude の override に設定、
+    wasm32 target 追加、wasm-bindgen-cli は dlltool 不在でソースビルド不可→公式prebuilt(msvc)
+    を導入。決定性は core と同一コードのため native test で担保（三角関数実装差で native と
+    wasm のビット一致は §2 上要求しない=同一ビルド内再現性）。デモは docs/demo/ で Pages 公開。
+```

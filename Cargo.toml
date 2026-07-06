@@ -1,10 +1,17 @@
+# ワークスペース: core（この package, 外部依存ゼロ）と render-wasm（wasm-bindgen 依存）を分離。
+# 既定メンバーは core のみ。render-wasm は明示ビルド（cargo build -p render-wasm --target wasm32-...）。
+# これにより core crate は std のみ・外部依存ゼロを維持する（render-001 §8 決定）。
+[workspace]
+members = [".", "render-wasm"]
+default-members = ["."]
+
 [package]
 name = "nenkin_garden"
 version = "0.0.0"
 edition = "2021"
 description = "粘菌ガーデン 決定論シミュレーションコア (core-000)"
 
-# 規約 §11: ネットワーク不使用のため外部依存は追加しない（std のみ）。
+# 規約 §11: core はネットワーク不使用・外部依存なし（std のみ）。
 # PRNG も自前実装で完全決定論を担保する。
 [dependencies]
 
