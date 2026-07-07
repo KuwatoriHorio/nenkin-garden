@@ -22,6 +22,7 @@ export const sim_place_sugar_at_canvas: (a: number, b: number, c: number, d: num
 export const sim_remove_sugar_at_canvas: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
 export const sim_render: (a: number, b: number) => void;
 export const sim_set_collect_rate: (a: number, b: number) => void;
+export const sim_set_trail_max: (a: number, b: number) => void;
 export const sim_state_hash_hex: (a: number) => [number, number];
 export const sim_step: (a: number) => void;
 export const sim_sugar_positions: (a: number) => [number, number];

@@ -415,3 +415,27 @@
     いることを検証（自己申告の「完全一致」は観測値で、テストは退行しないことのみ要求）。
     trail_max のソフト飽和は値のクランプのみで移動は禁じない（§0 壁を作らない）。既定は∞のまま。
 ```
+
+```
+- iter: 18
+  task: render-006
+  hypothesis: render-wasm に set_trail_max を足し、デモに trail_max スライダー（既定=core-004 の
+              緩和値18）を置けば、局在化の緩和を見ながら上限値を調整できる（core 非変更・読むだけ）。
+  diff_summary: |
+    render-wasm/src/lib.rs: set_trail_max()（実行中 params.trail_max のみ更新・既定不変）、
+    native test 2件（setter・非侵襲/決定性）。docs/demo/index.html: trailMax スライダー
+    （6〜60は数値・端61=∞上限なし・既定18）をチューニングパネルに追加、fresh() で再適用。
+    wasm/JS glue 再生成。
+  seeds: [42]（render は読むだけ・非侵襲/決定性を native test で担保）
+  invariants: pass  # core(src/) 無変更。render-wasm 8テスト緑。
+  metrics: |
+    ブラウザ実測(seed42): trailMax スライダー既定18、最大位置で「∞（上限なし）」表示、低値も反映、
+    採餌で群れがホーム-砂糖間に伸び張り付き緩和、コンソールエラー無し。
+    native: set_trail_max が params を変える・呼び出し前後で state_hash 不変・同設定で決定的。
+  goldens_updated: "docs/demo 再生成（wasm/js/index.html）"
+  models: { orchestrator: opus, implement: sonnet(subagent), verify: opus(+browser), record: opus }
+  decision: keep
+  note: |
+    局在化緩和の定量効果は core-004（L 中央値 21%低下）で実証済み。render-006 はスライダー配線と
+    デモ健全性をブラウザで確認。§0 の動詞不変（trail_max は開発用チューニング）。core←render 一方向維持。
+```

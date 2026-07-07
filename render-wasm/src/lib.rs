@@ -187,6 +187,14 @@ impl Sim {
         self.params.collect_rate = v;
     }
 
+    /// 実行中 Sim の trail 濃度上限（ソフト飽和）を実行時に変更する（render-006・開発用チューニング）。
+    /// `params.rs` の既定値（`f64::INFINITY`=上限なし）は変えない。core の力学（`step`）自体は不変で、
+    /// 次 tick から `params.trail_max` を読む（同型: `set_collect_rate` と同じ契約）。
+    /// `v` に `f64::INFINITY` を渡せば上限なしに戻せる（JS 側で `Infinity` を渡す想定）。
+    pub fn set_trail_max(&mut self, v: f64) {
+        self.params.trail_max = v;
+    }
+
     /// 現在 State を RGBA バッファへ描画する（State は読むだけ・非侵襲）。
     /// `show_trail=false` のとき陸/海の地形色のみを描き、trail の緑グロウは描かない
     /// （render-005: エージェント可視化と併せて trail 非表示を選べるようにする render 側の表示切替。
@@ -386,6 +394,38 @@ mod tests {
         }
         assert!(lo.state.collected_total > 0.0, "test setup should cause contact");
         assert!(hi.state.collected_total > lo.state.collected_total);
+    }
+
+    #[test]
+    fn set_trail_max_updates_params_only() {
+        let mut a = Sim::new(42);
+        // 既定は core-004 の既定どおり「上限なし」（params.rs は変えていないことの確認）。
+        assert_eq!(a.params.trail_max, f64::INFINITY);
+        a.set_trail_max(18.0);
+        assert_eq!(a.params.trail_max, 18.0);
+        // 上限なしへ戻せる（JS 側で Infinity を渡す想定）。
+        a.set_trail_max(f64::INFINITY);
+        assert_eq!(a.params.trail_max, f64::INFINITY);
+    }
+
+    #[test]
+    fn set_trail_max_is_non_invasive_and_deterministic() {
+        // setter 呼び出し自体は state を書き換えない（読むだけ・非侵襲）。
+        let mut a = Sim::new_forage(7);
+        let h = a.state_hash_hex();
+        a.set_trail_max(18.0);
+        assert_eq!(a.state_hash_hex(), h);
+
+        // 同一操作列・同一 trail_max → 同一 state_hash（決定性契約は保たれる）。
+        let mut x = Sim::new_forage(7);
+        let mut y = Sim::new_forage(7);
+        x.set_trail_max(18.0);
+        y.set_trail_max(18.0);
+        for _ in 0..30 {
+            x.step();
+            y.step();
+        }
+        assert_eq!(x.state_hash_hex(), y.state_hash_hex());
     }
 
     #[test]

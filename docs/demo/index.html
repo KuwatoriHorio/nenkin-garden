@@ -74,6 +74,10 @@
       <input id="collectRate" type="range" min="0.05" max="3" step="0.05" value="0.5">
       <span id="collectRateVal">0.50</span>
     </label>
+    <label class="stat">trail 濃度上限 trail_max（下げるほど局在化が緩和・端=∞は上限なし）
+      <input id="trailMax" type="range" min="6" max="61" step="1" value="18">
+      <span id="trailMaxVal">18</span>
+    </label>
   </div>
 
   <p class="hint">左クリック=砂糖を置く / 右クリック=取り除く &nbsp;·&nbsp;
@@ -96,6 +100,10 @@ const SCALE = 6;                                     // canvas 内部解像度 =
 const REMOVE_RADIUS = 3.0;
 // 開発用チューニング・パネルの値（render-005）。既定は core Params::default() と同じ見え方になる値。
 let strength = 350.0, collectRate = 0.5;
+// trail_max（render-006）: 採餌モードの既定として、局在化が目に見えて緩和される finite 値
+// （core-004 で局在化が約21%緩和した trail_max=18）をプリセット。スライダー最大位置=∞（上限なし）。
+const TRAIL_MAX_SLIDER_MAX = 61;   // このスライダー値のときだけ「∞=上限なし」を意味する（表示端の特殊値）
+let trailMax = 18.0;
 const PALETTE = ['#7cf698','#38f0e0','#ffd166','#f78c6b','#c792ea','#89ddff','#a3be8c','#e0aaff'];
 
 function fresh(seed){
@@ -106,6 +114,7 @@ function fresh(seed){
   cv.width = W * SCALE; cv.height = H * SCALE;
   gcache = null;
   sim.set_collect_rate(collectRate);   // チューニング・パネルの現在値をリセット後にも再適用（実行時setter）
+  sim.set_trail_max(trailMax);         // 同様に trail_max も再適用（render-006, set_collect_rate と同型）
 }
 
 // 密度バッファを（拡大して）描く。alpha<1 でグラフの下地にも使う。
@@ -257,6 +266,12 @@ document.getElementById('collectRate').addEventListener('input', e=>{
   collectRate = +e.target.value;
   document.getElementById('collectRateVal').textContent = collectRate.toFixed(2);
   if(sim) sim.set_collect_rate(collectRate);   // 実行中 Sim の params.collect_rate を実行時に変更（既定値は不変）
+});
+document.getElementById('trailMax').addEventListener('input', e=>{
+  const raw = +e.target.value;
+  trailMax = (raw >= TRAIL_MAX_SLIDER_MAX) ? Infinity : raw;   // 端(最大位置)=∞=上限なし
+  document.getElementById('trailMaxVal').textContent = Number.isFinite(trailMax) ? trailMax : '∞（上限なし）';
+  if(sim) sim.set_trail_max(trailMax);   // 実行中 Sim の params.trail_max を実行時に変更（既定値は不変, render-006）
 });
 
 init().then(w=>{

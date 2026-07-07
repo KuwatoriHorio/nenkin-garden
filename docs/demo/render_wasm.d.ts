@@ -68,6 +68,13 @@ export class Sim {
      */
     set_collect_rate(v: number): void;
     /**
+     * 実行中 Sim の trail 濃度上限（ソフト飽和）を実行時に変更する（render-006・開発用チューニング）。
+     * `params.rs` の既定値（`f64::INFINITY`=上限なし）は変えない。core の力学（`step`）自体は不変で、
+     * 次 tick から `params.trail_max` を読む（同型: `set_collect_rate` と同じ契約）。
+     * `v` に `f64::INFINITY` を渡せば上限なしに戻せる（JS 側で `Infinity` を渡す想定）。
+     */
+    set_trail_max(v: number): void;
+    /**
      * 決定性検証用: 現在 State の 64bit ハッシュを16進文字列で返す。
      */
     state_hash_hex(): string;
@@ -108,6 +115,7 @@ export interface InitOutput {
     readonly sim_remove_sugar_at_canvas: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
     readonly sim_render: (a: number, b: number) => void;
     readonly sim_set_collect_rate: (a: number, b: number) => void;
+    readonly sim_set_trail_max: (a: number, b: number) => void;
     readonly sim_state_hash_hex: (a: number) => [number, number];
     readonly sim_step: (a: number) => void;
     readonly sim_sugar_positions: (a: number) => [number, number];
