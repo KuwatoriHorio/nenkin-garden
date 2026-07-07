@@ -23,7 +23,7 @@ pub fn flow_width(current: f64, max_current: f64) -> f64 {
 }
 
 /// MST（最小全域森）に含まれるエッジを bool で返す（Kruskal, graph::mst_length と同順序）。
-fn mst_edge_set(g: &NetworkGraph) -> Vec<bool> {
+pub fn mst_edge_set(g: &NetworkGraph) -> Vec<bool> {
     let mut idx: Vec<usize> = (0..g.edges.len()).collect();
     idx.sort_by(|&i, &j| {
         let (e1, e2) = (&g.edges[i], &g.edges[j]);

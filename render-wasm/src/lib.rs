@@ -7,6 +7,8 @@
 
 use wasm_bindgen::prelude::*;
 
+use nenkin_garden::analysis::analyze;
+use nenkin_garden::graph_svg::mst_edge_set;
 use nenkin_garden::params::Params;
 use nenkin_garden::state::{apply_op, initial_state, Op, State};
 use nenkin_garden::world::{make_synthetic_archipelago, World};
@@ -44,6 +46,13 @@ pub struct Sim {
     state: State,
     pending: Vec<Op>,
     pixels: Vec<u8>, // RGBA, グリッド解像度 (w*h*4)
+    // グラフ幾何のキャッシュ（compute_graph で更新, render-003）
+    gnodes: Vec<f32>, // flat [x,y,...] グリッド座標
+    gedges: Vec<u32>, // flat [a,b,...] ノード index
+    gcur: Vec<f32>,   // エッジ電流 |I_e|（gedges と同順）
+    gmst: Vec<u8>,    // エッジが MST か（0/1）
+    gcomp: Vec<u32>,  // エッジの連結成分 id
+    gmaxcur: f32,     // 電流の最大（線幅正規化用）
 }
 
 #[wasm_bindgen]
@@ -55,7 +64,19 @@ impl Sim {
         let world = make_synthetic_archipelago(&params);
         let state = initial_state(seed as u64, &world, &params);
         let pixels = vec![0u8; world.w * world.h * 4];
-        Sim { world, params, state, pending: Vec::new(), pixels }
+        Sim {
+            world,
+            params,
+            state,
+            pending: Vec::new(),
+            pixels,
+            gnodes: Vec::new(),
+            gedges: Vec::new(),
+            gcur: Vec::new(),
+            gmst: Vec::new(),
+            gcomp: Vec::new(),
+            gmaxcur: 0.0,
+        }
     }
 
     pub fn width(&self) -> usize {
@@ -157,6 +178,52 @@ impl Sim {
     pub fn state_hash_hex(&self) -> String {
         format!("{:016x}", state_hash(&self.state, &self.params))
     }
+
+    /// 現在 State のグラフ幾何を解析して内部キャッシュへ格納する（読み取りのみ・非侵襲）。
+    /// JS はこの後アクセサで配列を取得して canvas に描く（render-003）。
+    pub fn compute_graph(&mut self) {
+        let res = analyze(&self.state, &self.world, &self.params);
+        let g = &res.graph;
+        let w = self.world.w;
+        self.gnodes = g
+            .node_px
+            .iter()
+            .flat_map(|&pix| [((pix % w) as f32) + 0.5, ((pix / w) as f32) + 0.5])
+            .collect();
+        self.gedges = g
+            .edges
+            .iter()
+            .flat_map(|e| [e.a as u32, e.b as u32])
+            .collect();
+        let has_flow = res.edge_currents.len() == g.edges.len();
+        self.gcur = if has_flow {
+            res.edge_currents.iter().map(|&c| c as f32).collect()
+        } else {
+            vec![0.0f32; g.edges.len()]
+        };
+        self.gmst = mst_edge_set(g).iter().map(|&b| b as u8).collect();
+        self.gcomp = g.edges.iter().map(|e| g.node_comp[e.a] as u32).collect();
+        self.gmaxcur = self.gcur.iter().cloned().fold(0.0f32, f32::max);
+    }
+
+    pub fn graph_nodes(&self) -> Vec<f32> {
+        self.gnodes.clone()
+    }
+    pub fn graph_edges(&self) -> Vec<u32> {
+        self.gedges.clone()
+    }
+    pub fn graph_edge_currents(&self) -> Vec<f32> {
+        self.gcur.clone()
+    }
+    pub fn graph_edge_mst(&self) -> Vec<u8> {
+        self.gmst.clone()
+    }
+    pub fn graph_edge_comp(&self) -> Vec<u32> {
+        self.gcomp.clone()
+    }
+    pub fn graph_max_current(&self) -> f32 {
+        self.gmaxcur
+    }
 }
 
 /// 保留 op を適用せずに単純ステップする内部用（テスト・ヘッドレス比較用, wasm 非公開）。
@@ -193,5 +260,27 @@ mod tests {
         let h = a.state_hash_hex();
         a.render();
         assert_eq!(a.state_hash_hex(), h);
+    }
+
+    #[test]
+    fn compute_graph_is_deterministic_and_non_invasive() {
+        let mut a = Sim::new(42);
+        let mut b = Sim::new(42);
+        for _ in 0..40 {
+            a.step();
+            b.step();
+        }
+        // compute_graph は State を書き換えない（前後で hash 不変）
+        let h = a.state_hash_hex();
+        a.compute_graph();
+        assert_eq!(a.state_hash_hex(), h);
+        b.compute_graph();
+        // 同一 State → 同一グラフ幾何
+        assert_eq!(a.graph_nodes(), b.graph_nodes());
+        assert_eq!(a.graph_edges(), b.graph_edges());
+        assert_eq!(a.graph_edge_currents(), b.graph_edge_currents());
+        assert_eq!(a.graph_edge_mst(), b.graph_edge_mst());
+        // 整合: 電流配列長 == エッジ数 == エッジ配列の半分
+        assert_eq!(a.graph_edge_currents().len() * 2, a.graph_edges().len());
     }
 }

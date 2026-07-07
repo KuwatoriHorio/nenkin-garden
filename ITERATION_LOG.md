@@ -267,3 +267,26 @@
     §7遵守: 見栄えの自己申告でなく判定可能条件（決定性/非侵襲/整合/写像単調）で合格。
     core←analysis←render の一方向依存を維持。WASMトグル統合は render-003 候補として未着手。
 ```
+
+```
+- iter: 12
+  task: render-003
+  hypothesis: render-wasm にグラフ幾何のアクセサを足し、デモに density⇔graph トグルを付ければ、
+              ライブでグラフ（幹線=流量太さ/MST実線・冗長破線/成分色）を見られる。
+  diff_summary: |
+    graph_svg::mst_edge_set を pub 化。render-wasm/Sim に compute_graph + アクセサ
+    (graph_nodes/edges/edge_currents/edge_mst/edge_comp/max_current) 追加（analyze を読むだけ）。
+    docs/demo/index.html を SCALE=6 の高解像度描画へ、モードトグル(密度⇔グラフ)と graph 描画
+    (canvas 2D, throttle 150ms)を実装。フレーム先頭で clearRect（下地蓄積バグ修正）。
+    wasm/bindings 再生成。tasks/task-render-003.md。
+  seeds: [42]（幾何の決定性・非侵襲を native test で担保）
+  invariants: pass  # core非変更・render は読むだけ。core28 + render-wasm3 テスト緑。
+  metrics: |
+    render-wasm test: compute_graph 前後で state_hash 不変（非侵襲）・同一State→同一幾何（決定的）・
+    電流長==エッジ数。ブラウザ実測: density⇔graph トグルで描画切替、コンソールエラー無し。
+  goldens_updated: "docs/demo 再生成（wasm/js/index.html）"
+  decision: keep
+  note: |
+    §7遵守: 判定可能条件で合格。表示切替はシミュ非変更（動詞は §0 のまま）。グラフ再計算は
+    throttle だが決定性は「同一State→同一幾何」で担保。core←analysis←render の一方向維持。
+```

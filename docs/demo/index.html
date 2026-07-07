@@ -47,6 +47,7 @@
     <button id="play" class="primary">⏸ 停止</button>
     <label class="stat">速度 <input id="speed" type="range" min="1" max="120" value="30"> <span id="spd">30</span>/s</label>
     <button id="reset">↺ リセット</button>
+    <button id="mode">🕸 グラフ表示</button>
     <label class="stat">seed <input id="seed" type="number" value="42" style="width:5em"></label>
   </div>
   <div class="bar stat">
@@ -66,34 +67,82 @@ const ctx = cv.getContext('2d');
 const off = document.createElement('canvas');       // グリッド解像度のオフスクリーン
 let octx, wasm, sim, W, H;
 let playing = true, speed = 30, acc = 0, last = 0;
+let mode = 'density';                                // 'density' | 'graph'
+let gcache = null, lastGraph = 0;                    // グラフ幾何のキャッシュ（throttle）
+const SCALE = 6;                                     // canvas 内部解像度 = グリッド×SCALE
 const STRENGTH = 350.0, REMOVE_RADIUS = 3.0;
+const PALETTE = ['#7cf698','#38f0e0','#ffd166','#f78c6b','#c792ea','#89ddff','#a3be8c','#e0aaff'];
 
 function fresh(seed){
   sim = new Sim(seed >>> 0);
   W = sim.width(); H = sim.height();
   off.width = W; off.height = H;
   octx = off.getContext('2d');
-  cv.width = W; cv.height = H;         // 内部解像度=グリッド, CSS で拡大(pixelated)
+  cv.width = W * SCALE; cv.height = H * SCALE;
+  gcache = null;
 }
 
-function draw(){
+// 密度バッファを（拡大して）描く。alpha<1 でグラフの下地にも使う。
+function drawDensity(alpha){
   sim.render();
-  const ptr = sim.pixels_ptr();
-  const len = sim.pixels_len();
-  const buf = new Uint8ClampedArray(wasm.memory.buffer, ptr, len); // 毎フレーム再取得(メモリ成長対策)
-  const img = new ImageData(new Uint8ClampedArray(buf), W, H);     // コピーして ImageData 化
-  octx.putImageData(img, 0, 0);
+  const ptr = sim.pixels_ptr(), len = sim.pixels_len();
+  const buf = new Uint8ClampedArray(wasm.memory.buffer, ptr, len); // 毎フレーム再取得
+  octx.putImageData(new ImageData(new Uint8ClampedArray(buf), W, H), 0, 0);
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(off, 0, 0);
+  ctx.globalAlpha = alpha;
+  ctx.drawImage(off, 0, 0, W, H, 0, 0, cv.width, cv.height);
+  ctx.globalAlpha = 1;
+}
 
-  // 砂糖源(赤点)
+function drawSugars(){
   const s = sim.sugar_positions();
-  ctx.fillStyle = '#ff5a5a'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 0.4;
   for(let i=0;i<s.length;i+=2){
-    ctx.beginPath(); ctx.arc(s[i], s[i+1], 1.6, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+    const terminal = (i===0 || i===s.length-2);
+    ctx.beginPath(); ctx.arc(s[i]*SCALE, s[i+1]*SCALE, terminal?7:5, 0, 6.2832);
+    ctx.fillStyle = '#ff5a5a'; ctx.fill();
+    ctx.lineWidth = terminal?2.5:1.2; ctx.strokeStyle = '#fff'; ctx.stroke();
   }
+  return s.length/2;
+}
+
+// グラフビュー: 密度を薄い下地に、ノード/エッジ（幹線=流量太さ, MST実線/冗長破線, 成分色）を描く。
+function drawGraph(ts){
+  drawDensity(0.22);
+  if(!gcache || ts - lastGraph > 150){          // グラフ再計算は throttle（決定性は同一State→同一幾何で担保）
+    sim.compute_graph();
+    gcache = {
+      nodes: sim.graph_nodes(), edges: sim.graph_edges(),
+      cur: sim.graph_edge_currents(), mst: sim.graph_edge_mst(),
+      comp: sim.graph_edge_comp(), maxc: sim.graph_max_current(),
+    };
+    lastGraph = ts;
+  }
+  const {nodes,edges,cur,mst,comp,maxc} = gcache;
+  for(let e=0;e<edges.length;e+=2){
+    const a=edges[e], b=edges[e+1], ei=e/2;
+    const w = maxc>1e-9 ? 1 + 5*(cur[ei]/maxc) : 1.2;   // 流量→線幅（render-002 と同じ写像）
+    ctx.strokeStyle = PALETTE[comp[ei] % PALETTE.length];
+    ctx.lineWidth = w;
+    ctx.setLineDash(mst[ei] ? [] : [5,5]);
+    ctx.globalAlpha = mst[ei] ? 0.95 : 0.7;
+    ctx.beginPath();
+    ctx.moveTo(nodes[a*2]*SCALE, nodes[a*2+1]*SCALE);
+    ctx.lineTo(nodes[b*2]*SCALE, nodes[b*2+1]*SCALE);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]); ctx.globalAlpha = 1;
+  ctx.fillStyle = '#0b1420'; ctx.strokeStyle = '#cfe3ff'; ctx.lineWidth = 1;
+  for(let n=0;n<nodes.length;n+=2){
+    ctx.beginPath(); ctx.arc(nodes[n]*SCALE, nodes[n+1]*SCALE, 2.6, 0, 6.2832); ctx.fill(); ctx.stroke();
+  }
+  return drawSugars();
+}
+
+function draw(ts){
+  ctx.clearRect(0, 0, cv.width, cv.height);   // 毎フレームclear（グラフ下地の0.22が蓄積しないよう）
+  const sugars = (mode==='graph') ? drawGraph(ts) : (drawDensity(1.0), drawSugars());
   document.getElementById('tick').textContent = sim.tick();
-  document.getElementById('sugars').textContent = s.length/2;
+  document.getElementById('sugars').textContent = sugars;
   document.getElementById('hash').textContent = sim.state_hash_hex();
 }
 
@@ -104,8 +153,9 @@ function loop(ts){
     acc += dt * speed;
     let n = 0;
     while(acc >= 1 && n < 400){ sim.step(); acc -= 1; n++; }
+    if(playing) gcache = null;   // 進んだらグラフ幾何は次フレームで再計算
   }
-  draw();
+  draw(ts);
   requestAnimationFrame(loop);
 }
 
@@ -113,15 +163,14 @@ function cellFromEvent(e){
   const r = cv.getBoundingClientRect();
   return { cx: e.clientX - r.left, cy: e.clientY - r.top, cw: r.width, ch: r.height };
 }
-
 cv.addEventListener('click', e=>{
   const {cx,cy,cw,ch} = cellFromEvent(e);
-  sim.place_sugar_at_canvas(cx, cy, cw, ch, STRENGTH);
+  sim.place_sugar_at_canvas(cx, cy, cw, ch, STRENGTH); gcache = null;
 });
 cv.addEventListener('contextmenu', e=>{
   e.preventDefault();
   const {cx,cy,cw,ch} = cellFromEvent(e);
-  sim.remove_sugar_at_canvas(cx, cy, cw, ch, REMOVE_RADIUS);
+  sim.remove_sugar_at_canvas(cx, cy, cw, ch, REMOVE_RADIUS); gcache = null;
 });
 
 document.getElementById('play').addEventListener('click', e=>{
@@ -132,8 +181,12 @@ document.getElementById('speed').addEventListener('input', e=>{
   speed = +e.target.value; document.getElementById('spd').textContent = speed;
 });
 document.getElementById('reset').addEventListener('click', ()=>{
-  const seed = +document.getElementById('seed').value || 0;
-  fresh(seed);
+  fresh(+document.getElementById('seed').value || 0);
+});
+document.getElementById('mode').addEventListener('click', e=>{
+  mode = (mode==='graph') ? 'density' : 'graph';
+  gcache = null;
+  e.target.textContent = (mode==='graph') ? '🟢 密度表示' : '🕸 グラフ表示';
 });
 
 init().then(w=>{

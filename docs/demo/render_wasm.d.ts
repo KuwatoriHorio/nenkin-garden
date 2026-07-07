@@ -4,6 +4,17 @@
 export class Sim {
     free(): void;
     [Symbol.dispose](): void;
+    /**
+     * 現在 State のグラフ幾何を解析して内部キャッシュへ格納する（読み取りのみ・非侵襲）。
+     * JS はこの後アクセサで配列を取得して canvas に描く（render-003）。
+     */
+    compute_graph(): void;
+    graph_edge_comp(): Uint32Array;
+    graph_edge_currents(): Float32Array;
+    graph_edge_mst(): Uint8Array;
+    graph_edges(): Uint32Array;
+    graph_max_current(): number;
+    graph_nodes(): Float32Array;
     height(): number;
     /**
      * seed から新しいシミュレーションを作る（既定 params・既定の合成列島）。
@@ -47,6 +58,13 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_sim_free: (a: number, b: number) => void;
+    readonly sim_compute_graph: (a: number) => void;
+    readonly sim_graph_edge_comp: (a: number) => [number, number];
+    readonly sim_graph_edge_currents: (a: number) => [number, number];
+    readonly sim_graph_edge_mst: (a: number) => [number, number];
+    readonly sim_graph_edges: (a: number) => [number, number];
+    readonly sim_graph_max_current: (a: number) => number;
+    readonly sim_graph_nodes: (a: number) => [number, number];
     readonly sim_height: (a: number) => number;
     readonly sim_new: (a: number) => number;
     readonly sim_pixels_len: (a: number) => number;
