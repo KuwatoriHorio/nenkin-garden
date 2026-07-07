@@ -60,7 +60,21 @@ impl Sim {
     /// seed から新しいシミュレーションを作る（既定 params・既定の合成列島）。
     #[wasm_bindgen(constructor)]
     pub fn new(seed: u32) -> Sim {
-        let params = Params::default();
+        Sim::build(seed, Params::default())
+    }
+
+    /// core-002 採餌モード: ホームに凝集して始まり、trail 勾配コホージョンで
+    /// 群れがまとまったまま砂糖へ触手を伸ばす（伸び）。砂糖を消すと退縮する（縮み）。
+    /// core は同一・パラメータ既定値を変えるだけ（core ← render の一方向依存は不変）。
+    pub fn new_forage(seed: u32) -> Sim {
+        let mut params = Params::default();
+        params.init_cluster_sigma = 3.0;
+        params.w_trail_cohesion = 1.0;
+        // home_x/home_y は負のまま = World から低標高陸の重心近傍を自動選択（決定的）。
+        Sim::build(seed, params)
+    }
+
+    fn build(seed: u32, params: Params) -> Sim {
         let world = make_synthetic_archipelago(&params);
         let state = initial_state(seed as u64, &world, &params);
         let pixels = vec![0u8; world.w * world.h * 4];
@@ -77,6 +91,19 @@ impl Sim {
             gcomp: Vec::new(),
             gmaxcur: 0.0,
         }
+    }
+
+    /// 採餌モードのホーム座標（グリッド座標）。JS がホーム印を描くのに使う。
+    /// 従来モードでは一様散布のため参考値（重心近傍）。
+    pub fn home_x(&self) -> f32 {
+        self.world.default_home(self.params.e_lo).0 as f32
+    }
+    pub fn home_y(&self) -> f32 {
+        self.world.default_home(self.params.e_lo).1 as f32
+    }
+    /// 採餌モードか（凝集初期化が有効か）。
+    pub fn is_forage(&self) -> bool {
+        self.params.init_cluster_sigma > 0.0
     }
 
     pub fn width(&self) -> usize {
@@ -260,6 +287,36 @@ mod tests {
         let h = a.state_hash_hex();
         a.render();
         assert_eq!(a.state_hash_hex(), h);
+    }
+
+    #[test]
+    fn forage_mode_is_deterministic_and_clusters() {
+        let mut a = Sim::new_forage(42);
+        let mut b = Sim::new_forage(42);
+        assert!(a.is_forage() && b.is_forage());
+        // ホームは決定的
+        assert_eq!(a.home_x(), b.home_x());
+        assert_eq!(a.home_y(), b.home_y());
+        // 初期エージェントはホーム近傍に凝集（従来 new は陸全体に散る）。
+        let (hx, hy) = (a.home_x() as f64, a.home_y() as f64);
+        let near = (0..a.state.n_agents())
+            .filter(|&i| {
+                let dx = a.state.ax[i] as f64 - hx;
+                let dy = a.state.ay[i] as f64 - hy;
+                (dx * dx + dy * dy).sqrt() <= 12.0
+            })
+            .count();
+        assert!(
+            near * 2 >= a.state.n_agents(),
+            "forage init should cluster near home: {near}/{}",
+            a.state.n_agents()
+        );
+        // 同一操作列 → 同一 state_hash（決定性）
+        for _ in 0..30 {
+            a.step();
+            b.step();
+        }
+        assert_eq!(a.state_hash_hex(), b.state_hash_hex());
     }
 
     #[test]

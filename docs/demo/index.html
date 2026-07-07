@@ -33,13 +33,15 @@
 <body>
 <div class="wrap">
   <h1>粘菌ガーデン — 対話デモ</h1>
-  <p class="sub">決定論コアを WebAssembly で実行。<b>キャンバスをクリックして砂糖を置く</b>と、
-    粘菌の網がそこへ伸びていきます。右クリックで砂糖を取り除きます。</p>
+  <p class="sub">決定論コアを WebAssembly で実行。<b>採餌モード</b>では群れがホーム（◇）に凝集して始まり、
+    <b>離れた場所に砂糖を置く</b>と、まとまったまま触手を伸ばして探し当てます（伸び）。
+    <b>砂糖を取り除く</b>と、養えなくなった触手が退縮します（縮み）。右クリックで砂糖を取り除きます。</p>
 
   <div class="stage"><canvas id="cv" width="96" height="96"></canvas></div>
   <div class="legend">
     <span><span class="dot" style="background:#7cf698"></span>trail 網</span>
     <span><span class="dot" style="background:#ff5a5a;border-radius:50%"></span>砂糖源</span>
+    <span><span class="dot" style="background:#ffe08a;border-radius:2px;transform:rotate(45deg)"></span>ホーム（採餌）</span>
     <span><span class="dot" style="background:#0b1e2d"></span>海</span>
   </div>
 
@@ -47,6 +49,7 @@
     <button id="play" class="primary">⏸ 停止</button>
     <label class="stat">速度 <input id="speed" type="range" min="1" max="120" value="30"> <span id="spd">30</span>/s</label>
     <button id="reset">↺ リセット</button>
+    <button id="forage" class="primary">🏠 採餌モード: ON</button>
     <button id="mode">🕸 グラフ表示</button>
     <label class="stat">seed <input id="seed" type="number" value="42" style="width:5em"></label>
   </div>
@@ -67,6 +70,7 @@ const ctx = cv.getContext('2d');
 const off = document.createElement('canvas');       // グリッド解像度のオフスクリーン
 let octx, wasm, sim, W, H;
 let playing = true, speed = 30, acc = 0, last = 0;
+let forage = true;                                   // 採餌モード（ホーム凝集＋コホージョン, core-002）
 let mode = 'density';                                // 'density' | 'graph'
 let gcache = null, lastGraph = 0;                    // グラフ幾何のキャッシュ（throttle）
 const SCALE = 6;                                     // canvas 内部解像度 = グリッド×SCALE
@@ -74,7 +78,7 @@ const STRENGTH = 350.0, REMOVE_RADIUS = 3.0;
 const PALETTE = ['#7cf698','#38f0e0','#ffd166','#f78c6b','#c792ea','#89ddff','#a3be8c','#e0aaff'];
 
 function fresh(seed){
-  sim = new Sim(seed >>> 0);
+  sim = forage ? Sim.new_forage(seed >>> 0) : new Sim(seed >>> 0);
   W = sim.width(); H = sim.height();
   off.width = W; off.height = H;
   octx = off.getContext('2d');
@@ -92,6 +96,17 @@ function drawDensity(alpha){
   ctx.globalAlpha = alpha;
   ctx.drawImage(off, 0, 0, W, H, 0, 0, cv.width, cv.height);
   ctx.globalAlpha = 1;
+}
+
+// 採餌モードのホーム印（◇）を描く。
+function drawHome(){
+  if(!forage) return;
+  const hx = sim.home_x()*SCALE, hy = sim.home_y()*SCALE;
+  ctx.save();
+  ctx.translate(hx, hy); ctx.rotate(Math.PI/4);
+  ctx.fillStyle = '#ffe08a'; ctx.strokeStyle = '#7a5b12'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.rect(-5,-5,10,10); ctx.fill(); ctx.stroke();
+  ctx.restore();
 }
 
 function drawSugars(){
@@ -141,6 +156,7 @@ function drawGraph(ts){
 function draw(ts){
   ctx.clearRect(0, 0, cv.width, cv.height);   // 毎フレームclear（グラフ下地の0.22が蓄積しないよう）
   const sugars = (mode==='graph') ? drawGraph(ts) : (drawDensity(1.0), drawSugars());
+  drawHome();
   document.getElementById('tick').textContent = sim.tick();
   document.getElementById('sugars').textContent = sugars;
   document.getElementById('hash').textContent = sim.state_hash_hex();
@@ -182,6 +198,11 @@ document.getElementById('speed').addEventListener('input', e=>{
 });
 document.getElementById('reset').addEventListener('click', ()=>{
   fresh(+document.getElementById('seed').value || 0);
+});
+document.getElementById('forage').addEventListener('click', e=>{
+  forage = !forage;
+  e.target.textContent = forage ? '🏠 採餌モード: ON' : '🏠 採餌モード: OFF';
+  fresh(+document.getElementById('seed').value || 42);   // モード切替はコロニー初期化から
 });
 document.getElementById('mode').addEventListener('click', e=>{
   mode = (mode==='graph') ? 'density' : 'graph';

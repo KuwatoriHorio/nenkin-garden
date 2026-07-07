@@ -317,3 +317,27 @@
     退縮は幾何非依存の時間比較（砂糖除去→減衰）で測った（鏡像対照は島形状で不成立のため棄却）。
     新挙動は既定オフ。既定化やデモ有効化は別ステップ（デモ有効化は render 系の後続タスク候補）。
 ```
+
+```
+- iter: 14
+  task: render-004
+  hypothesis: render-wasm に採餌コンストラクタ（core-002 の凝集＋コホージョン preset）と
+              ホーム座標アクセサを足し、demo にモードトグルを付ければ、ブラウザで
+              伸び（砂糖へ触手到達）・縮み（除去で退縮）をライブで見せられる。
+  diff_summary: |
+    render-wasm/src/lib.rs: Sim::new_forage（sigma=3, cohesion=1, home自動）と build ヘルパへ
+    リファクタ、home_x/home_y/is_forage アクセサ、native test forage_mode_*（決定性＋凝集）追加。
+    docs/demo/index.html: 採餌/従来トグル（既定ON）・ホーム印◇・説明文更新。wasm/js glue 再生成。
+    tasks/task-render-004.md。
+  seeds: [42]（render は読むだけ・幾何/凝集の決定性を native test で担保）
+  invariants: pass  # core 非変更。core 全テスト＋render-wasm 4 テスト緑。
+  metrics: |
+    render-wasm test: new_forage 決定的・初期エージェントの過半がホーム半径12内に凝集・同一操作列→同一hash。
+    ブラウザ実測(seed42): 採餌モードで群れがホーム◇に凝集→距離12の砂糖へ触手が伸びて到達(伸び)→
+    砂糖除去でトンネル退縮(縮み)。density⇔graph・従来モードも動作、コンソールエラー無し。
+  goldens_updated: "docs/demo 再生成（wasm/js/index.html）"
+  decision: keep
+  note: |
+    §7遵守: ブラウザ検証は判定可能条件（凝集/到達/退縮の目視＋native 決定性 test）で確認。
+    §0 の動詞不変（採餌は初期条件の切替で新動詞ではない）。core←render の一方向依存を維持。
+```

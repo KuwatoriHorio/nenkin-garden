@@ -1,6 +1,10 @@
-/* @ts-self-types="./render_wasm.d.ts" */
-
 export class Sim {
+    static __wrap(ptr) {
+        const obj = Object.create(Sim.prototype);
+        obj.__wbg_ptr = ptr;
+        SimFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;
         this.__wbg_ptr = 0;
@@ -78,6 +82,30 @@ export class Sim {
         return ret >>> 0;
     }
     /**
+     * 採餌モードのホーム座標（グリッド座標）。JS がホーム印を描くのに使う。
+     * 従来モードでは一様散布のため参考値（重心近傍）。
+     * @returns {number}
+     */
+    home_x() {
+        const ret = wasm.sim_home_x(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    home_y() {
+        const ret = wasm.sim_home_y(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * 採餌モードか（凝集初期化が有効か）。
+     * @returns {boolean}
+     */
+    is_forage() {
+        const ret = wasm.sim_is_forage(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
      * seed から新しいシミュレーションを作る（既定 params・既定の合成列島）。
      * @param {number} seed
      */
@@ -86,6 +114,17 @@ export class Sim {
         this.__wbg_ptr = ret;
         SimFinalization.register(this, this.__wbg_ptr, this);
         return this;
+    }
+    /**
+     * core-002 採餌モード: ホームに凝集して始まり、trail 勾配コホージョンで
+     * 群れがまとまったまま砂糖へ触手を伸ばす（伸び）。砂糖を消すと退縮する（縮み）。
+     * core は同一・パラメータ既定値を変えるだけ（core ← render の一方向依存は不変）。
+     * @param {number} seed
+     * @returns {Sim}
+     */
+    static new_forage(seed) {
+        const ret = wasm.sim_new_forage(seed);
+        return Sim.__wrap(ret);
     }
     /**
      * @returns {number}
