@@ -292,7 +292,9 @@ pub fn step(state: &mut State, world: &World, p: &Params, ops: &[Op]) {
         if !world.land_mask[i] {
             v = 0.0; // 海はマスク
         }
-        state.trail[i] = v as f32;
+        // core-004: trail 濃度の上限（ソフト飽和）。既定 trail_max=INFINITY では
+        // v.min(INFINITY)==v なので既存挙動はバイト不変。
+        state.trail[i] = (v as f32).min(p.trail_max as f32);
     }
 
     state.tick += 1;

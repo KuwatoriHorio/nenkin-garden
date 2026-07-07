@@ -391,3 +391,27 @@
     §0 の動詞不変（strength/collect_rate は開発用チューニング・パネル＝プレイ動詞ではない、UI で区別）。
     core←render の一方向依存を維持。ブラウザ検証はプレビューツールを持つオーケストレーターが実施。
 ```
+
+```
+- iter: 17
+  task: core-004
+  hypothesis: trail に上限 trail_max を設けクランプすれば、ホーム中心の誘引の井戸が頭打ちになり
+              遠くの砂糖ビーコンが対等に競えて局在化が緩和される。既定∞なら既存挙動はバイト不変。
+  diff_summary: |
+    params.rs: pub trail_max: f64（既定 f64::INFINITY）。step.rs: 拡散・減衰の最終書き戻しで
+    state.trail[i] = (v as f32).min(trail_max as f32)（海マスク=0は従来どおり）。
+    tests/core_004.rs 新規（5テスト）。探索用 _probe は削除済み。
+  seeds: [1,42,1337]（実測選定 trail_max=18, R=6）
+  invariants: pass  # 既定∞で既存30テスト hash バイト不変。finite でも Tier0 維持。core_004 5テスト緑。
+  metrics: |
+    局在化指標 L=ホーム半径R内trail/全trail。trail_max=18(R=6): L中央値 0.505 < ∞ 0.644（約21%低下・
+    各シードで一貫 lf<li）。離れた砂糖回収は非退行(med_fin>=med_inf)。全trail<=trail_max+1e-3。
+    同一seed→同一hash。全17スイート緑・cargo exit 0（オーケストレーター独立検証）。
+  goldens_updated: none  # 既定∞で既存ゴールデン不変。
+  models: { orchestrator: opus, implement: sonnet(subagent), verify: opus, record: opus }
+  decision: keep
+  note: |
+    §7遵守: テストを独立再実行し緑を確認、テスト内容も読んで非退行が `>=` で正しく主張されて
+    いることを検証（自己申告の「完全一致」は観測値で、テストは退行しないことのみ要求）。
+    trail_max のソフト飽和は値のクランプのみで移動は禁じない（§0 壁を作らない）。既定は∞のまま。
+```

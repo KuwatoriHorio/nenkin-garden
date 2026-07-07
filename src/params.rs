@@ -29,6 +29,9 @@ pub struct Params {
     pub decay_base: f64,
     pub decay_high: f64, // 高標高の減衰（忌避④）
 
+    // core-004: trail 濃度の上限（ソフト飽和・壁ではない）。既定は上限なし。
+    pub trail_max: f64,
+
     // 砂糖・成長（§5-5,6）
     pub sugar_radius: f64,
     pub collect_rate: f64,
@@ -96,6 +99,9 @@ impl Default for Params {
             diffuse_rate: 0.18,
             decay_base: 0.02,
             decay_high: 0.20,
+
+            // core-004: 既定は上限なし（v.min(INF)==v で既存挙動をバイト維持）。
+            trail_max: f64::INFINITY,
 
             sugar_radius: 3.0,
             collect_rate: 0.5,
