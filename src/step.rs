@@ -222,6 +222,12 @@ pub fn step(state: &mut State, world: &World, p: &Params, ops: &[Op]) {
         }
     }
 
+    // --- core-003: 残量0以下(枯渇)の砂糖源を tick 末尾で id 昇順・決定論的に自動削除 ---
+    // 回収・ビーコンループ（上の m を使う処理）は全て終えた後、成長/拡散より前に行う。
+    // 枯渇砂糖は既に力学的に不活性（回収・ビーコンとも remaining>0 でスキップ済み）なので、
+    // ここで消しても agent/trail/biomass の挙動は変わらない。
+    crate::state::remove_depleted_sugar(state);
+
     // --- 6. 成長（スポーン）---
     let ncur = state.n_agents();
     let max_agents = p

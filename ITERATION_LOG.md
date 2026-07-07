@@ -341,3 +341,28 @@
     §7遵守: ブラウザ検証は判定可能条件（凝集/到達/退縮の目視＋native 決定性 test）で確認。
     §0 の動詞不変（採餌は初期条件の切替で新動詞ではない）。core←render の一方向依存を維持。
 ```
+
+```
+- iter: 15
+  task: core-003
+  hypothesis: 枯渇砂糖(remaining<=0)はビーコン/回収とも remaining>0 条件でスキップ済み＝力学的に
+              不活性なので、step() 末尾で決定論的に自動削除しても agent/trail/biomass の挙動は
+              変わらず、砂糖リストだけが掃除される。
+  diff_summary: |
+    state.rs: RemoveSugar の除去を remove_sugar_at ヘルパへ切り出し、pub fn remove_depleted_sugar
+    （id昇順で remaining<=0 を前方走査削除・決定論）を追加。lib.rs で公開。
+    step.rs: 砂糖ビーコンループ後・成長セクション前に remove_depleted_sugar を1行呼ぶ
+    （回収/ビーコンが使う配列長 m を乱さないタイミング）。tests/core_003.rs 新規（4テスト）。
+  seeds: [1,42,1337]（foraging 回帰は S9 部分集合で不変条件＋決定性）
+  invariants: pass  # 既存30テスト挙動バイト維持（既存シナリオは検証tick内で枯渇しない）。core_003 4テスト緑。
+  metrics: |
+    枯渇1tick→id0削除/id1残存、同時枯渇→両削除/無関係残存、保存則 biomass==collected-consumed 維持、
+    同一seed→同一 final_state_hash。全17スイート緑・cargo exit 0（オーケストレーター独立検証）。
+  goldens_updated: none  # 既存ゴールデン不変。
+  models: { orchestrator: opus, implement: sonnet(subagent), verify: opus, record: opus }
+  decision: keep
+  note: |
+    §8.1 改訂後の初の自動委譲。実装を nenkin-implementer 相当(sonnet)へ委譲し、keep 判定と
+    独立検証はオーケストレーター(opus)。カスタム定義は今session未ロードのため汎用agent+model指定で代替。
+    §7遵守: 自己申告を鵜呑みにせず全スイートを独立再実行して緑を確認。保護ファイル無編集。
+```

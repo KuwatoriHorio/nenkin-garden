@@ -23,6 +23,6 @@ pub use hash::state_hash;
 pub use headless::{run_headless, RunResult};
 pub use metrics::{compute_metrics, Metrics};
 pub use params::Params;
-pub use state::{apply_op, initial_state, Op, ScriptEntry, State};
+pub use state::{apply_op, initial_state, remove_depleted_sugar, Op, ScriptEntry, State};
 pub use step::step;
 pub use world::{make_synthetic_archipelago, World};

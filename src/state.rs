@@ -184,12 +184,34 @@ pub fn apply_op(state: &mut State, op: &Op) {
         }
         Op::RemoveSugar { id } => {
             if let Some(pos) = state.sugar_id.iter().position(|&s| s == id) {
-                state.sugar_id.remove(pos);
-                state.sugar_x.remove(pos);
-                state.sugar_y.remove(pos);
-                state.sugar_strength.remove(pos);
-                state.sugar_remaining.remove(pos);
+                remove_sugar_at(state, pos);
             }
+        }
+    }
+}
+
+/// 指定 index の砂糖源を全並列配列（id/x/y/strength/remaining）から取り除く。
+/// RemoveSugar op と自動削除（core-003）が共有する単一の除去ロジック。
+fn remove_sugar_at(state: &mut State, pos: usize) {
+    state.sugar_id.remove(pos);
+    state.sugar_x.remove(pos);
+    state.sugar_y.remove(pos);
+    state.sugar_strength.remove(pos);
+    state.sugar_remaining.remove(pos);
+}
+
+/// core-003: 残量0以下（枯渇）の砂糖源を id 昇順で決定論的に自動削除する。
+/// 枯渇砂糖はビーコン・回収とも remaining>0 条件でスキップ済みで力学的に不活性なため、
+/// この削除は agent/trail/biomass の挙動に影響しない。
+pub fn remove_depleted_sugar(state: &mut State) {
+    // sugar_id は常に id 昇順（PlaceSugar は末尾追加のみ・削除は並び順を保つ）で
+    // 保たれているため、前方から走査するだけで id 昇順の決定的な削除になる。
+    let mut i = 0;
+    while i < state.sugar_id.len() {
+        if state.sugar_remaining[i] <= 0.0 {
+            remove_sugar_at(state, i);
+        } else {
+            i += 1;
         }
     }
 }
