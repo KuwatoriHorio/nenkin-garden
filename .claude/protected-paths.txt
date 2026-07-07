@@ -1,0 +1,14 @@
+﻿# 人間所有ファイル（規約 §11）。ここに列挙したパスへの Edit/Write は
+# PreToolUse フック(guard-owned-files.ps1)が拒否する。1行1パターン。
+# パターンは正規化済みパス(スラッシュ区切り)の末尾に対して照合される（*/<pattern>）。
+# 変更・追加は人間の承認タスク(§8)で行う。
+
+# 規範文書
+CLAUDE.md
+loop-rules-core.md
+loop-engineering-rules-v0.md
+tests/CLAUDE.md
+
+# 人間所有のしきい値 / baseline / ゴールデン（§3・§4・§5）
+tests/test_harness_001.rs
+tests/metric_thresholds_001.rs
