@@ -290,3 +290,30 @@
     §7遵守: 判定可能条件で合格。表示切替はシミュ非変更（動詞は §0 のまま）。グラフ再計算は
     throttle だが決定性は「同一State→同一幾何」で担保。core←analysis←render の一方向維持。
 ```
+
+```
+- iter: 13
+  task: core-002
+  hypothesis: エージェントをホームに凝集させて始め、前進確率に trail 勾配コホージョン
+              （空白へはソフトに出にくいが p_move>0 で滲める）を足せば、群れが凝集したまま
+              ホームから砂糖へ触手を伸ばして到達し（伸び）、餌が消えた枝は減衰で退縮する（縮み）。
+  diff_summary: |
+    params.rs に home_x/home_y/init_cluster_sigma/w_trail_cohesion を追加（既定は現行挙動
+    ＝sigma=0 一様散布, cohesion=0 抑制なし）。world.rs に default_home（低標高陸重心近傍を
+    決定的に選ぶ）。state.rs に cluster_positions（Box-Muller で home 周りガウス配置・海は
+    ホームへフォールバック）。step.rs の前進ゲートに p_move *= exp(-w_trail_cohesion*max(Δtrail,0))
+    （必ず p_move>0）。tests/core_002.rs 新規。
+  seeds: [1,7,13,42,99,256,1337,2024,31337]（S9・中央値/計数で判定）
+  invariants: pass  # 既定オフで既存30テスト挙動バイト維持。preset でも Tier0 全数緑。
+  metrics: |
+    foraging preset(sigma=3, cohesion=1, home自動, 砂糖を距離12に配置): 実測 S9 中央値 —
+    reach 9/9・warmup 群れ拡がり中央値 3.4（cohesion=0 は 24 に四散）・砂糖除去後の
+    A地点 trail retention 0.35（peak 103→after 36 ＝トンネル退縮）。受け入れ①〜④成立。
+  goldens_updated: none  # 既存ゴールデン不変。新規テストの baseline のみ（実測 preset）。
+  decision: keep
+  note: |
+    §7遵守: 「見た目」でなく判定可能条件（凝集・到達計数・退縮 retention）で合格。過学習回避に
+    最初から S9 で評価。設計要点＝「空白への抵抗はソフトのみ・壁を作らない」（§0）を p_move>0 で担保。
+    退縮は幾何非依存の時間比較（砂糖除去→減衰）で測った（鏡像対照は島形状で不成立のため棄却）。
+    新挙動は既定オフ。既定化やデモ有効化は別ステップ（デモ有効化は render 系の後続タスク候補）。
+```

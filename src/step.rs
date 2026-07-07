@@ -119,13 +119,19 @@ pub fn step(state: &mut State, world: &World, p: &Params, ops: &[Op]) {
         }
         let mut new_heading = heading + delta;
 
-        // 3. 前進（傾斜コスト）
+        // 3. 前進（傾斜コスト ＋ core-002: 誘引物質勾配コホージョン）
         let tx = x + p.step_size * new_heading.cos();
         let ty = y + p.step_size * new_heading.sin();
-        let (_, e_target, sea_target, _, _) = sample(tx, ty, &trail_read, world);
-        let (_, e_cur, _, _, _) = sample(x, y, &trail_read, world);
+        let (trail_target, e_target, sea_target, _, _) = sample(tx, ty, &trail_read, world);
+        let (trail_cur, e_cur, _, _, _) = sample(x, y, &trail_read, world);
         let d_e = (e_target - e_cur).max(0.0);
-        let p_move = (-p.k_slope * d_e).exp();
+        let mut p_move = (-p.k_slope * d_e).exp();
+        // trail が大きく下がる（＝空白へ出る）向きの前進をソフトに抑制。
+        // max(...,0) と exp で必ず p_move>0 を保つ（空白へ確率的に滲める＝探索を殺さない）。§7/§0 ソフト忌避。
+        if p.w_trail_cohesion > 0.0 {
+            let d_trail = (trail_cur - trail_target).max(0.0);
+            p_move *= (-p.w_trail_cohesion * d_trail).exp();
+        }
         let move_ok = (r_move < p_move) && !sea_target;
 
         let (nx, ny) = if move_ok { (tx, ty) } else { (x, y) };

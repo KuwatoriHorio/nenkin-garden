@@ -17,6 +17,78 @@ impl World {
     pub fn idx(&self, y: usize, x: usize) -> usize {
         y * self.w + x
     }
+
+    /// core-002: 既定ホーム座標を決定論的に選ぶ（seed 非依存）。
+    /// 主要島（最大の低標高 E<e_lo 連結塊）の重心に最も近い低標高陸セルの中心。
+    /// 低標高陸が無ければ任意の陸セルの重心へフォールバック。
+    pub fn default_home(&self, e_lo: f64) -> (f64, f64) {
+        let (h, w) = (self.h, self.w);
+        // 低標高帯（land && E<e_lo）の重心
+        let mut sx = 0.0f64;
+        let mut sy = 0.0f64;
+        let mut cnt = 0usize;
+        for y in 0..h {
+            for x in 0..w {
+                let i = y * w + x;
+                if self.land_mask[i] && (self.e[i] as f64) < e_lo {
+                    sx += x as f64;
+                    sy += y as f64;
+                    cnt += 1;
+                }
+            }
+        }
+        if cnt == 0 {
+            // 低標高帯が空 → 全陸の重心
+            for y in 0..h {
+                for x in 0..w {
+                    let i = y * w + x;
+                    if self.land_mask[i] {
+                        sx += x as f64;
+                        sy += y as f64;
+                        cnt += 1;
+                    }
+                }
+            }
+        }
+        assert!(cnt > 0, "world has no land cells");
+        let (gx, gy) = (sx / cnt as f64, sy / cnt as f64);
+        // 重心に最も近い「低標高陸セル（無ければ陸セル）」の中心へスナップ（決定的）
+        let mut best = usize::MAX;
+        let mut best_d = f64::INFINITY;
+        for y in 0..h {
+            for x in 0..w {
+                let i = y * w + x;
+                let ok = self.land_mask[i] && ((self.e[i] as f64) < e_lo || cnt == 0);
+                if !ok {
+                    continue;
+                }
+                let d = (x as f64 - gx).powi(2) + (y as f64 - gy).powi(2);
+                if d < best_d {
+                    best_d = d;
+                    best = i;
+                }
+            }
+        }
+        // 低標高帯が空でスナップ候補が無い場合に備え、陸セルでも再走査
+        if best == usize::MAX {
+            for y in 0..h {
+                for x in 0..w {
+                    let i = y * w + x;
+                    if !self.land_mask[i] {
+                        continue;
+                    }
+                    let d = (x as f64 - gx).powi(2) + (y as f64 - gy).powi(2);
+                    if d < best_d {
+                        best_d = d;
+                        best = i;
+                    }
+                }
+            }
+        }
+        let cx = (best % w) as f64 + 0.5;
+        let cy = (best / w) as f64 + 0.5;
+        (cx, cy)
+    }
 }
 
 fn gaussian_bump(h: usize, w: usize, cy: f64, cx: f64, sy: f64, sx: f64, out: &mut [f64], amp: f64) {

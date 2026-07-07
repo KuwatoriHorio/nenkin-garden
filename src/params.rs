@@ -45,6 +45,12 @@ pub struct Params {
     pub n_init_agents: usize,
     pub initial_biomass: f64,
 
+    // --- core-002: ホーム凝集スタート＋誘引物質勾配コホージョン（すべて既定は現行挙動）---
+    pub home_x: f64,             // ホーム座標。負(=-1)で「auto=World から低標高陸セルを算出」。
+    pub home_y: f64,
+    pub init_cluster_sigma: f64, // 0=一様散布（従来）。>0=ホーム周りの標準偏差で凝集配置。
+    pub w_trail_cohesion: f64,   // 0=従来。>0=trailが下がる向きへの前進をソフト抑制（p_move>0は保つ）。
+
     // メトリクスしきい（§8）
     pub theta_cov: f64,
     pub theta_cc: f64,
@@ -108,6 +114,12 @@ impl Default for Params {
             // 砂糖回収→バイオマス増→上限増→スポーンの成長ループが実際に駆動するようにする。
             n_init_agents: 80,
             initial_biomass: 5.0,
+
+            // core-002: 既定は現行挙動（sigma=0 で一様散布, cohesion=0 で移動抑制なし）。
+            home_x: -1.0,
+            home_y: -1.0,
+            init_cluster_sigma: 0.0,
+            w_trail_cohesion: 0.0,
 
             theta_cov: 0.05,
             theta_cc: 0.05,
