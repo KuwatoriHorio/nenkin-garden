@@ -1,3 +1,5 @@
+/* @ts-self-types="./render_wasm.d.ts" */
+
 export class Sim {
     static __wrap(ptr) {
         const obj = Object.create(Sim.prototype);
@@ -14,6 +16,17 @@ export class Sim {
     free() {
         const ptr = this.__destroy_into_raw();
         wasm.__wbg_sim_free(ptr, 0);
+    }
+    /**
+     * エージェント位置を flat 配列 [x0,y0,x1,y1,...]（グリッド座標）で返す（render-005）。
+     * `state.ax/ay` を読むだけ・非侵襲（sugar_positions と同型）。
+     * @returns {Float32Array}
+     */
+    agent_positions() {
+        const ret = wasm.sim_agent_positions(this.__wbg_ptr);
+        var v1 = getArrayF32FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+        return v1;
     }
     /**
      * 現在 State のグラフ幾何を解析して内部キャッシュへ格納する（読み取りのみ・非侵襲）。
@@ -169,9 +182,22 @@ export class Sim {
     }
     /**
      * 現在 State を RGBA バッファへ描画する（State は読むだけ・非侵襲）。
+     * `show_trail=false` のとき陸/海の地形色のみを描き、trail の緑グロウは描かない
+     * （render-005: エージェント可視化と併せて trail 非表示を選べるようにする render 側の表示切替。
+     * State を読む範囲・描画専用ロジックのみで、core の力学には触れない）。
+     * @param {boolean} show_trail
      */
-    render() {
-        wasm.sim_render(this.__wbg_ptr);
+    render(show_trail) {
+        wasm.sim_render(this.__wbg_ptr, show_trail);
+    }
+    /**
+     * 実行中 Sim の回収レート（バイオマス増加量）を実行時に変更する（render-005・開発用チューニング）。
+     * `params.rs` の既定値は変えない。core の力学（`step`）自体は不変で、次 tick から
+     * この値を読む（決定性契約は「同一 params・同一入力→同一hash」のまま保たれる）。
+     * @param {number} v
+     */
+    set_collect_rate(v) {
+        wasm.sim_set_collect_rate(this.__wbg_ptr, v);
     }
     /**
      * 決定性検証用: 現在 State の 64bit ハッシュを16進文字列で返す。

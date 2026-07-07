@@ -28,6 +28,9 @@
   a{color:var(--accent)}
   .legend{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;color:var(--muted);font-size:.8rem;margin-top:6px}
   .dot{display:inline-block;width:10px;height:10px;border-radius:3px;vertical-align:middle;margin-right:5px}
+  .panel{border:1px dashed var(--line);border-radius:10px;padding:10px 14px;margin:14px auto 0;max-width:520px;
+    display:flex;flex-direction:column;gap:8px;background:rgba(255,255,255,.02)}
+  .panel-title{margin:0 0 2px;color:var(--muted);font-size:.8rem;font-weight:600;letter-spacing:.02em}
 </style>
 </head>
 <body>
@@ -39,6 +42,7 @@
 
   <div class="stage"><canvas id="cv" width="96" height="96"></canvas></div>
   <div class="legend">
+    <span><span class="dot" style="background:#eafcff;border-radius:50%"></span>エージェント</span>
     <span><span class="dot" style="background:#7cf698"></span>trail 網</span>
     <span><span class="dot" style="background:#ff5a5a;border-radius:50%"></span>砂糖源</span>
     <span><span class="dot" style="background:#ffe08a;border-radius:2px;transform:rotate(45deg)"></span>ホーム（採餌）</span>
@@ -51,6 +55,7 @@
     <button id="reset">↺ リセット</button>
     <button id="forage" class="primary">🏠 採餌モード: ON</button>
     <button id="mode">🕸 グラフ表示</button>
+    <button id="trail">🌫 trail表示: OFF</button>
     <label class="stat">seed <input id="seed" type="number" value="42" style="width:5em"></label>
   </div>
   <div class="bar stat">
@@ -58,6 +63,19 @@
     <span>砂糖: <b id="sugars">0</b></span>
     <span>state_hash: <b id="hash">—</b></span>
   </div>
+
+  <div class="panel">
+    <p class="panel-title">🔧 開発用チューニング・パネル（プレイ動詞ではない・見え方確認用, render-005）</p>
+    <label class="stat">砂糖の初期量 strength
+      <input id="strength" type="range" min="50" max="1000" step="10" value="350">
+      <span id="strengthVal">350</span>
+    </label>
+    <label class="stat">回収レート collect_rate（バイオマス増加量）
+      <input id="collectRate" type="range" min="0.05" max="3" step="0.05" value="0.5">
+      <span id="collectRateVal">0.50</span>
+    </label>
+  </div>
+
   <p class="hint">左クリック=砂糖を置く / 右クリック=取り除く &nbsp;·&nbsp;
     <a href="../index.html">← プロジェクトのトップへ</a></p>
 </div>
@@ -72,9 +90,12 @@ let octx, wasm, sim, W, H;
 let playing = true, speed = 30, acc = 0, last = 0;
 let forage = true;                                   // 採餌モード（ホーム凝集＋コホージョン, core-002）
 let mode = 'density';                                // 'density' | 'graph'
+let showTrail = false;                               // trail(密度)表示トグル（render-005: 既定OFF・エージェント表示が既定）
 let gcache = null, lastGraph = 0;                    // グラフ幾何のキャッシュ（throttle）
 const SCALE = 6;                                     // canvas 内部解像度 = グリッド×SCALE
-const STRENGTH = 350.0, REMOVE_RADIUS = 3.0;
+const REMOVE_RADIUS = 3.0;
+// 開発用チューニング・パネルの値（render-005）。既定は core Params::default() と同じ見え方になる値。
+let strength = 350.0, collectRate = 0.5;
 const PALETTE = ['#7cf698','#38f0e0','#ffd166','#f78c6b','#c792ea','#89ddff','#a3be8c','#e0aaff'];
 
 function fresh(seed){
@@ -84,11 +105,13 @@ function fresh(seed){
   octx = off.getContext('2d');
   cv.width = W * SCALE; cv.height = H * SCALE;
   gcache = null;
+  sim.set_collect_rate(collectRate);   // チューニング・パネルの現在値をリセット後にも再適用（実行時setter）
 }
 
 // 密度バッファを（拡大して）描く。alpha<1 でグラフの下地にも使う。
-function drawDensity(alpha){
-  sim.render();
+// withTrail=false のときは land/sea 背景のみ（trail の緑グロウを描かない, render-005）。
+function drawDensity(alpha, withTrail){
+  sim.render(withTrail);
   const ptr = sim.pixels_ptr(), len = sim.pixels_len();
   const buf = new Uint8ClampedArray(wasm.memory.buffer, ptr, len); // 毎フレーム再取得
   octx.putImageData(new ImageData(new Uint8ClampedArray(buf), W, H), 0, 0);
@@ -96,6 +119,17 @@ function drawDensity(alpha){
   ctx.globalAlpha = alpha;
   ctx.drawImage(off, 0, 0, W, H, 0, 0, cv.width, cv.height);
   ctx.globalAlpha = 1;
+}
+
+// エージェント（歩き手）を点で描く（render-005: state.ax/ay を読むだけ・非侵襲）。
+function drawAgents(){
+  const p = sim.agent_positions();
+  ctx.fillStyle = '#eafcffdd';
+  for(let i=0;i<p.length;i+=2){
+    ctx.beginPath();
+    ctx.arc(p[i]*SCALE, p[i+1]*SCALE, 1.5, 0, 6.2832);
+    ctx.fill();
+  }
 }
 
 // 採餌モードのホーム印（◇）を描く。
@@ -122,7 +156,7 @@ function drawSugars(){
 
 // グラフビュー: 密度を薄い下地に、ノード/エッジ（幹線=流量太さ, MST実線/冗長破線, 成分色）を描く。
 function drawGraph(ts){
-  drawDensity(0.22);
+  drawDensity(0.22, showTrail);
   if(!gcache || ts - lastGraph > 150){          // グラフ再計算は throttle（決定性は同一State→同一幾何で担保）
     sim.compute_graph();
     gcache = {
@@ -155,7 +189,9 @@ function drawGraph(ts){
 
 function draw(ts){
   ctx.clearRect(0, 0, cv.width, cv.height);   // 毎フレームclear（グラフ下地の0.22が蓄積しないよう）
-  const sugars = (mode==='graph') ? drawGraph(ts) : (drawDensity(1.0), drawSugars());
+  // 背景（陸/海）＋trail(任意)は常にまず描く。エージェント点＋砂糖＋ホーム印は常に描く（render-005）。
+  const sugars = (mode==='graph') ? drawGraph(ts) : (drawDensity(1.0, showTrail), drawSugars());
+  drawAgents();
   drawHome();
   document.getElementById('tick').textContent = sim.tick();
   document.getElementById('sugars').textContent = sugars;
@@ -181,7 +217,7 @@ function cellFromEvent(e){
 }
 cv.addEventListener('click', e=>{
   const {cx,cy,cw,ch} = cellFromEvent(e);
-  sim.place_sugar_at_canvas(cx, cy, cw, ch, STRENGTH); gcache = null;
+  sim.place_sugar_at_canvas(cx, cy, cw, ch, strength); gcache = null;
 });
 cv.addEventListener('contextmenu', e=>{
   e.preventDefault();
@@ -208,6 +244,19 @@ document.getElementById('mode').addEventListener('click', e=>{
   mode = (mode==='graph') ? 'density' : 'graph';
   gcache = null;
   e.target.textContent = (mode==='graph') ? '🟢 密度表示' : '🕸 グラフ表示';
+});
+document.getElementById('trail').addEventListener('click', e=>{
+  showTrail = !showTrail;
+  e.target.textContent = showTrail ? '🌫 trail表示: ON' : '🌫 trail表示: OFF';
+});
+document.getElementById('strength').addEventListener('input', e=>{
+  strength = +e.target.value;
+  document.getElementById('strengthVal').textContent = strength;
+});
+document.getElementById('collectRate').addEventListener('input', e=>{
+  collectRate = +e.target.value;
+  document.getElementById('collectRateVal').textContent = collectRate.toFixed(2);
+  if(sim) sim.set_collect_rate(collectRate);   // 実行中 Sim の params.collect_rate を実行時に変更（既定値は不変）
 });
 
 init().then(w=>{

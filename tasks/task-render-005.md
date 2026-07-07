@@ -4,7 +4,11 @@
 **前提**: `core-000/001/002` 完了。`render-001〜004` 完了（対話デモ稼働）。
 関連: [core-003](task-core-003.md)（枯渇砂糖の自動削除・独立だが同時期の要望）。
 
-> **状態: 🔵 未着手（§8.1 で人間確認待ち）**
+> **状態: ✅ 完了**（2026-07-07, iter:16）— render-wasm に `agent_positions()`・`set_collect_rate()`
+> 追加、`render(show_trail)` に拡張。デモにエージェント点描画・trail表示トグル（既定OFF）・
+> strength/collect_rate スライダー（開発用パネル）を実装。render-wasm 6テスト緑、core/保護ファイル
+> 無変更。ブラウザ実測でエージェント可視化・trail切替・スライダー・採餌をエラー無しで確認。
+> 実装は sonnet 委譲、ブラウザ検証・keep はオーケストレーター(opus)。
 
 ---
 

@@ -366,3 +366,28 @@
     独立検証はオーケストレーター(opus)。カスタム定義は今session未ロードのため汎用agent+model指定で代替。
     §7遵守: 自己申告を鵜呑みにせず全スイートを独立再実行して緑を確認。保護ファイル無編集。
 ```
+
+```
+- iter: 16
+  task: render-005
+  hypothesis: render-wasm に agent 位置アクセサと collect_rate 実行時setterを足し、render を
+              show_trail 切替に拡張すれば、デモでエージェントを点で見せ・trail を消し・
+              砂糖量/回収レートを見ながら調整できる（core 非変更・読むだけ）。
+  diff_summary: |
+    render-wasm/src/lib.rs: agent_positions()（ax/ay を flat で・非侵襲）、set_collect_rate()
+    （実行中 params のみ更新・既定不変）、render(show_trail:bool) に拡張。native test 6件緑。
+    docs/demo/index.html: drawAgents() 常時描画、trail表示トグル（既定OFF）、開発用チューニング
+    パネル（strength/collect_rate スライダー・破線枠でプレイ動詞と区別）。wasm/JS glue 再生成。
+  seeds: [42]（render は読むだけ・非侵襲/決定性を native test で担保）
+  invariants: pass  # core(src/) 無変更。render-wasm 6テスト緑。core 全テストは前 iter から不変。
+  metrics: |
+    ブラウザ実測(seed42): 既定で trail OFF・エージェントが白点でホーム凝集を可視化、trailトグルで
+    密度復帰、strength(→800)/collect_rate(→2.5)スライダー反映、砂糖設置→採餌、コンソールエラー無し。
+    native: agent_positions 長さ==2×n_agents・取得前後で state_hash 不変・set_collect_rate が効く。
+  goldens_updated: "docs/demo 再生成（wasm/js/index.html）"
+  models: { orchestrator: opus, implement: sonnet(subagent), verify: opus(+browser), record: opus }
+  decision: keep
+  note: |
+    §0 の動詞不変（strength/collect_rate は開発用チューニング・パネル＝プレイ動詞ではない、UI で区別）。
+    core←render の一方向依存を維持。ブラウザ検証はプレビューツールを持つオーケストレーターが実施。
+```

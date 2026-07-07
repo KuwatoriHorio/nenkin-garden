@@ -169,8 +169,29 @@ impl Sim {
         v
     }
 
+    /// エージェント位置を flat 配列 [x0,y0,x1,y1,...]（グリッド座標）で返す（render-005）。
+    /// `state.ax/ay` を読むだけ・非侵襲（sugar_positions と同型）。
+    pub fn agent_positions(&self) -> Vec<f32> {
+        let mut v = Vec::with_capacity(self.state.ax.len() * 2);
+        for i in 0..self.state.ax.len() {
+            v.push(self.state.ax[i]);
+            v.push(self.state.ay[i]);
+        }
+        v
+    }
+
+    /// 実行中 Sim の回収レート（バイオマス増加量）を実行時に変更する（render-005・開発用チューニング）。
+    /// `params.rs` の既定値は変えない。core の力学（`step`）自体は不変で、次 tick から
+    /// この値を読む（決定性契約は「同一 params・同一入力→同一hash」のまま保たれる）。
+    pub fn set_collect_rate(&mut self, v: f64) {
+        self.params.collect_rate = v;
+    }
+
     /// 現在 State を RGBA バッファへ描画する（State は読むだけ・非侵襲）。
-    pub fn render(&mut self) {
+    /// `show_trail=false` のとき陸/海の地形色のみを描き、trail の緑グロウは描かない
+    /// （render-005: エージェント可視化と併せて trail 非表示を選べるようにする render 側の表示切替。
+    /// State を読む範囲・描画専用ロジックのみで、core の力学には触れない）。
+    pub fn render(&mut self, show_trail: bool) {
         let (w, h) = (self.world.w, self.world.h);
         let maxt = self.state.trail.iter().cloned().fold(0.0f32, f32::max).max(1e-6) as f64;
         let glow = (124.0, 246.0, 152.0);
@@ -178,9 +199,13 @@ impl Sim {
             let (r, g, b) = if self.world.land_mask[i] {
                 let e = self.world.e[i] as f64;
                 let base = land_color(e);
-                let t = (self.state.trail[i] as f64 / maxt).clamp(0.0, 1.0);
-                let a = (t * 1.6).min(1.0);
-                lerp(base, glow, a)
+                if show_trail {
+                    let t = (self.state.trail[i] as f64 / maxt).clamp(0.0, 1.0);
+                    let a = (t * 1.6).min(1.0);
+                    lerp(base, glow, a)
+                } else {
+                    base
+                }
             } else {
                 (11.0, 30.0, 45.0) // 海
             };
@@ -285,7 +310,7 @@ mod tests {
         assert_eq!(a.state_hash_hex(), b.state_hash_hex());
         // render は State を書き換えない（前後で hash 不変）
         let h = a.state_hash_hex();
-        a.render();
+        a.render(true);
         assert_eq!(a.state_hash_hex(), h);
     }
 
@@ -317,6 +342,50 @@ mod tests {
             b.step();
         }
         assert_eq!(a.state_hash_hex(), b.state_hash_hex());
+    }
+
+    #[test]
+    fn agent_positions_len_matches_and_is_non_invasive() {
+        let mut a = Sim::new_forage(42);
+        for _ in 0..10 {
+            a.step();
+        }
+        let h = a.state_hash_hex();
+        let pos = a.agent_positions();
+        // 長さ: エージェント数 × 2（x,y）
+        assert_eq!(pos.len(), 2 * a.state.n_agents());
+        // 内容: state.ax/ay と一致（読むだけ）
+        for i in 0..a.state.n_agents() {
+            assert_eq!(pos[i * 2], a.state.ax[i]);
+            assert_eq!(pos[i * 2 + 1], a.state.ay[i]);
+        }
+        // 取得前後で state_hash 不変（非侵襲）
+        assert_eq!(a.state_hash_hex(), h);
+    }
+
+    #[test]
+    fn set_collect_rate_updates_params_and_affects_uptake() {
+        let mut a = Sim::new(42);
+        let before = a.params.collect_rate;
+        a.set_collect_rate(before * 5.0 + 1.0);
+        assert_eq!(a.params.collect_rate, before * 5.0 + 1.0);
+        assert_ne!(a.params.collect_rate, before);
+
+        // 挙動でも確認: 同一初期状態から、片方だけ回収レートを上げると
+        // 同じ tick 数後の collected_total がより大きくなる（砂糖はホーム同座標に十分量置く）。
+        let mut lo = Sim::new_forage(7);
+        let mut hi = Sim::new_forage(7);
+        let (hx, hy) = (lo.home_x() as f64, lo.home_y() as f64);
+        lo.pending.push(Op::PlaceSugar { x: hx, y: hy, strength: 5000.0 });
+        hi.pending.push(Op::PlaceSugar { x: hx, y: hy, strength: 5000.0 });
+        let base = hi.params.collect_rate;
+        hi.set_collect_rate(base * 4.0);
+        for _ in 0..40 {
+            lo.step();
+            hi.step();
+        }
+        assert!(lo.state.collected_total > 0.0, "test setup should cause contact");
+        assert!(hi.state.collected_total > lo.state.collected_total);
     }
 
     #[test]
