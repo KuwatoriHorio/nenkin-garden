@@ -15,6 +15,7 @@ pub struct FlowResult {
     pub effective_resistance: f64,
     pub total_conductance: f64,
     pub transport_efficiency: f64, // 幹線集約度（HHI, 後述）
+    pub edge_currents: Vec<f64>,   // 各骨格エッジ（graph.edges 順）の電流 |I_e|（可視化用, render-002）
 }
 
 /// 密行列ガウス消去（部分ピボット, 決定的）。特異なら None。
@@ -183,6 +184,7 @@ pub fn solve(
             effective_resistance: -1.0, // 非連結の番兵
             total_conductance: 0.0,
             transport_efficiency: 0.0,
+            edge_currents: Vec::new(),
         };
     }
 
@@ -219,6 +221,7 @@ pub fn solve(
                 effective_resistance: -1.0,
                 total_conductance: 0.0,
                 transport_efficiency: 0.0,
+                edge_currents: Vec::new(),
             };
         }
     }
@@ -247,5 +250,6 @@ pub fn solve(
         effective_resistance: eff_res,
         total_conductance,
         transport_efficiency,
+        edge_currents: currents,
     }
 }

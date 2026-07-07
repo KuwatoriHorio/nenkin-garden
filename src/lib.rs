@@ -8,6 +8,7 @@
 //! を守るため後付けする。core はそれらに依存しない。
 
 pub mod analysis;
+pub mod graph_svg;
 pub mod hash;
 pub mod headless;
 pub mod metrics;

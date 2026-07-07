@@ -66,6 +66,7 @@ impl AnalysisMetrics {
 pub struct AnalysisResult {
     pub metrics: AnalysisMetrics,
     pub graph: graph::NetworkGraph,
+    pub edge_currents: Vec<f64>, // graph.edges 順の電流 |I_e|（非連結時は空, render-002 可視化用）
 }
 
 /// 陸地全体の平均標高（受け入れ #4 の比較基準）。
@@ -129,5 +130,5 @@ pub fn analyze(state: &State, world: &World, p: &Params) -> AnalysisResult {
         flow_connected: f.connected,
     };
 
-    AnalysisResult { metrics, graph: g }
+    AnalysisResult { metrics, graph: g, edge_currents: f.edge_currents }
 }

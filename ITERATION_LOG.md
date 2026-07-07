@@ -244,3 +244,26 @@
     ビーコン小半径化だけで連結。metric_thresholds/test_harness の変更は意図した挙動変更に伴う
     正当な golden 更新・proxy 精緻化であり、テストの弱体化ではない。
 ```
+
+```
+- iter: 11
+  task: render-002
+  hypothesis: analysis の出力（グラフ・MST・流量）から、幹線=流量太さ/MST実線・冗長辺破線/
+              成分色分けの静的グラフSVGを、非侵襲・決定的に生成できる。
+  diff_summary: |
+    analysis: flow::solve が捨てていた per-edge 電流を FlowResult.edge_currents に公開、
+    AnalysisResult.edge_currents から取得可能に（読み取り専用の露出, 新指標でない）。
+    src/graph_svg.rs 新規（flow_width 純関数 + graph_to_svg: 成分色/流量太さ/MST実線・冗長破線/
+    source·sink）。src/bin/render_graph_svg.rs, tests/render_002.rs。docs/network_graph.svg 生成、
+    index.html にグラフビューの節を追加。
+  seeds: [1,42,1337]
+  invariants: pass  # core非変更・edge_currentsはフィールド追加のみ。総計28+2テスト緑。
+  metrics: |
+    seed42: SVG バイト一致(決定的)・生成前後で state_hash 不変(非侵襲)・data-nodes/edges が
+    analysis の nodes/edges と一致。source↔sink の幹線が最大幅で描画（視覚確認）。
+  goldens_updated: "docs/network_graph.svg 新規生成 + index.html グラフ節追加"
+  decision: keep
+  note: |
+    §7遵守: 見栄えの自己申告でなく判定可能条件（決定性/非侵襲/整合/写像単調）で合格。
+    core←analysis←render の一方向依存を維持。WASMトグル統合は render-003 候補として未着手。
+```

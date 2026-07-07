@@ -32,6 +32,10 @@ name = "render_svg"
 path = "src/bin/render_svg.rs"
 
 [[bin]]
+name = "render_graph_svg"
+path = "src/bin/render_graph_svg.rs"
+
+[[bin]]
 name = "calibrate"
 path = "src/bin/calibrate.rs"
 

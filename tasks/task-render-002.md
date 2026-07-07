@@ -3,6 +3,10 @@
 `loop-engineering-rules-v0.md` §11 のフォーマットに沿ったタスク文。
 **前提**: `analysis-001/002/003`（効率ネットワーク解析）完了。設計メモ §2 の `render/` レイヤ。
 
+> **状態: ✅ 完了**（2026-07-07, iter:11）— `src/graph_svg.rs` + `render_graph_svg` bin。
+> flow の per-edge 電流を公開し、幹線=流量太さ/MST実線・冗長辺破線/成分色分けを SVG 化。
+> 受け入れ4件（決定性/非侵襲/グラフ整合/写像単調）緑。docs/network_graph.svg 公開。
+
 ---
 
 ## 位置づけ

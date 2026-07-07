@@ -92,6 +92,17 @@
     <figcaption>実際のヘッドレス実行の終端状態（seed=42, 160 ticks）。決定論コアなので、この絵は state から一意に決まる。</figcaption>
   </figure>
 
+  <figure>
+    <div class="art"><img src="network_graph.svg" alt="解析が導いた効率ネットワークのグラフ（seed=42, 160 ticks）"></div>
+    <div class="legend">
+      <span><span class="dot" style="width:22px;background:#7cf698"></span>幹線（太さ=流量）</span>
+      <span><span class="dot" style="background:#38f0e0"></span>連結成分（色分け）</span>
+      <span><span class="dot" style="background:#9fb0c8"></span>冗長辺（破線）</span>
+      <span><span class="dot" style="background:#ff5a5a;border-radius:50%"></span>source / sink</span>
+    </div>
+    <figcaption>同じ state を <b>グラフ</b>で見た派生ビュー（render-002）。source↔sink を運ぶ幹線が流量で太くなる。密度ビューと同じく state から一意。</figcaption>
+  </figure>
+
   <section>
     <h2>これは何？</h2>
     <p>
