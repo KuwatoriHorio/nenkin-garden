@@ -465,3 +465,32 @@
     （§0 動詞・core←render 一方向維持）。密メッシュを避け最近傍最大2本で樹状に。カスタム
     サブエージェント nenkin-implementer を型名で直接起動（今session でロード済み）。
 ```
+
+```
+- iter: 20
+  task: tree-growth-001
+  hypothesis: 木(親子パスのみ・閉路なし)を、砂糖への space colonization で全体予算Bをパス距離に
+              保存的再配分（伸長=free→構造, 退縮=構造→free）すれば、砂糖へ伸び・枝分かれし・餌喪失で
+              縮む成長木が決定論的に作れる。現行 Jones とは別モデルとして並置できる。
+  diff_summary: |
+    新規独立モジュール src/tree/{state,step,hash,mod}.rs（TreeState/Node/TreeParams/tree_step/
+    tree_state_hash/run_tree_headless）。src/bin/run_tree.rs 新設。lib.rs に pub mod tree、
+    Cargo.toml に bin を加算的登録のみ。tests/tree_growth_001.rs 新規6件。既存 Jones コードは無変更。
+  seeds: [1,42,1337]（S9部分集合・中央値）
+  invariants: pass  # 新モデル独自の不変条件。既存 Jones の全テストも不変で緑（独立モジュール）。
+  metrics: |
+    TreeParams default(実測調整): k=1.0 c_elev=2.2 c_branch=0.15 growth_rate=0.6
+    branch_angle=0.9 max_path_len=10 retreat=0.25 max_step_per_tick=1.5 attract_radius=48 B0=250。
+    受け入れ①到達(nearest<=sugar_radius) ②保存則(total_volume==collected-consumed,非負) ③分岐≥1+両到達
+    ④退縮(構造長 after/before<=0.6) ⑤不変条件(有限/境界=陸/hash再現/標高忌避 high<low*0.95 於予算律速regime)
+    ⑥木性(根1・親高々1・閉路なし連結)。全スイート緑・exit0（オーケストレーター独立再実行）。
+  goldens_updated: none  # 新モデルは独立。既存ゴールデン不変。
+  models: { orchestrator: opus, implement: sonnet(nenkin-implementer), verify: opus, record: opus }
+  decision: keep
+  note: |
+    §0 の設計軸に関わる新モデルをユーザー承認の下で並置（現行 Jones は無傷）。実装中に overshoot
+    デッドロック（大配分でtipが場外へ跳び境界棄却で恒久停止）を max_step_per_tick で修正=実バグ是正
+    でテスト非弱化。⑤標高忌避テストは予算律速regimeで「高標高への伸長抑制」を測る（受け入れ⑤の
+    「または」条項を満たす）＝§7ごまかしでないとオーケストレーターが精読確認。描画は後続（木は
+    render-007 ニューロン表現と好相性）。
+```

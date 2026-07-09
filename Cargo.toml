@@ -39,5 +39,9 @@ path = "src/bin/render_graph_svg.rs"
 name = "calibrate"
 path = "src/bin/calibrate.rs"
 
+[[bin]]
+name = "run_tree"
+path = "src/bin/run_tree.rs"
+
 [profile.release]
 opt-level = 3

@@ -16,6 +16,7 @@ pub mod params;
 pub mod rng;
 pub mod state;
 pub mod step;
+pub mod tree;
 pub mod world;
 
 pub use analysis::{analyze, mean_land_elevation, AnalysisMetrics, AnalysisResult};

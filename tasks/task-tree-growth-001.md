@@ -5,7 +5,12 @@
 ユーザー決定（2026-07-07）: **α案（space colonization）／体積=全体予算／木のみ（閉路なし）確定／
 まず別モデルとして最小プロトタイプを試作**。
 
-> **状態: 🔵 未着手（§8.1 で人間確認待ち）**
+> **状態: ✅ 完了**（2026-07-09, iter:20）— 独立モジュール `src/tree/`（state/step/hash/mod）＋
+> `src/bin/run_tree.rs` を新設。α space colonization・全体予算 B・保存的再配分
+> （total_volume=b_free+Σk·d_i）・分岐・退縮・境界・標高コストを実装。新規 `tests/tree_growth_001.rs`
+> 6件（到達/保存則/分岐両到達/退縮/不変条件/木性）緑、S9部分集合中央値。実装中に overshoot
+> デッドロックを `max_step_per_tick` で修正。現行 Jones・保護ファイル無変更。実装
+> nenkin-implementer(sonnet)、独立検証（テスト精読＋全スイート再実行）・keep はオーケストレーター(opus)。
 
 ---
 
