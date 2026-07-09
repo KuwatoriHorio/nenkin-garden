@@ -180,6 +180,63 @@ impl Sim {
         v
     }
 
+    /// 近接エージェントを結ぶリンクを flat `[a0,b0,a1,b1,...]`（エージェント index ペア, a<b）で
+    /// 返す（render-007）。グリッド空間分割で近傍探索し O(n) 程度に抑える。各エージェントは
+    /// 半径 `radius` 内の最近傍**最大2本**にのみ結ぶ（半径内全結合の密網にはしない）ことで、
+    /// ニューロン様の枝分かれした樹状に見せる。出力は (a,b) 昇順ソート・重複排除・自己リンク無し
+    /// の決定論的順序。`state.ax/ay` を読むだけ・非侵襲（`agent_positions` と同型）。
+    pub fn agent_links(&self, radius: f64) -> Vec<u32> {
+        let n = self.state.ax.len();
+        if n == 0 || radius <= 0.0 {
+            return Vec::new();
+        }
+        let cell = radius.max(1e-6);
+        let cell_of = |x: f32, y: f32| -> (i64, i64) {
+            ((x as f64 / cell).floor() as i64, (y as f64 / cell).floor() as i64)
+        };
+        // グリッド分割: セル座標 -> その中の agent index 一覧（index 昇順で挿入）。
+        let mut grid: std::collections::HashMap<(i64, i64), Vec<usize>> = std::collections::HashMap::new();
+        for i in 0..n {
+            grid.entry(cell_of(self.state.ax[i], self.state.ay[i])).or_default().push(i);
+        }
+        let r2 = radius * radius;
+        // BTreeSet で (a,b) を集約 → 挿入順に依存せず最終的に決定論的なソート済み集合になる。
+        let mut pairs: std::collections::BTreeSet<(u32, u32)> = std::collections::BTreeSet::new();
+        for i in 0..n {
+            let (cx, cy) = cell_of(self.state.ax[i], self.state.ay[i]);
+            let mut cand: Vec<(f64, usize)> = Vec::new();
+            for dx in -1..=1i64 {
+                for dy in -1..=1i64 {
+                    if let Some(list) = grid.get(&(cx + dx, cy + dy)) {
+                        for &j in list {
+                            if j == i {
+                                continue;
+                            }
+                            let ddx = (self.state.ax[i] - self.state.ax[j]) as f64;
+                            let ddy = (self.state.ay[i] - self.state.ay[j]) as f64;
+                            let d2 = ddx * ddx + ddy * ddy;
+                            if d2 <= r2 {
+                                cand.push((d2, j));
+                            }
+                        }
+                    }
+                }
+            }
+            // 距離昇順（タイは index 昇順）で安定ソート → 決定的。最近傍から最大2本まで採る。
+            cand.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal).then(a.1.cmp(&b.1)));
+            for &(_, j) in cand.iter().take(2) {
+                let (a, b) = if i < j { (i as u32, j as u32) } else { (j as u32, i as u32) };
+                pairs.insert((a, b));
+            }
+        }
+        let mut out = Vec::with_capacity(pairs.len() * 2);
+        for (a, b) in pairs {
+            out.push(a);
+            out.push(b);
+        }
+        out
+    }
+
     /// 実行中 Sim の回収レート（バイオマス増加量）を実行時に変更する（render-005・開発用チューニング）。
     /// `params.rs` の既定値は変えない。core の力学（`step`）自体は不変で、次 tick から
     /// この値を読む（決定性契約は「同一 params・同一入力→同一hash」のまま保たれる）。
@@ -369,6 +426,52 @@ mod tests {
         }
         // 取得前後で state_hash 不変（非侵襲）
         assert_eq!(a.state_hash_hex(), h);
+    }
+
+    #[test]
+    fn agent_links_is_deterministic_and_non_invasive() {
+        let mut a = Sim::new_forage(42);
+        let mut b = Sim::new_forage(42);
+        for _ in 0..15 {
+            a.step();
+            b.step();
+        }
+        let h = a.state_hash_hex();
+        let la = a.agent_links(6.0);
+        // 呼び出し前後で state_hash 不変（非侵襲）
+        assert_eq!(a.state_hash_hex(), h);
+        let lb = b.agent_links(6.0);
+        // 同一 State → 同一リンク（決定論）
+        assert_eq!(la, lb);
+    }
+
+    #[test]
+    fn agent_links_are_valid_pairs() {
+        let mut a = Sim::new_forage(7);
+        for _ in 0..20 {
+            a.step();
+        }
+        let n = a.state.n_agents() as u32;
+        let links = a.agent_links(6.0);
+        assert_eq!(links.len() % 2, 0, "flat pairs must have even length");
+        let mut prev: Option<(u32, u32)> = None;
+        for c in links.chunks(2) {
+            let (x, y) = (c[0], c[1]);
+            assert!(x < n && y < n, "indices must be within agent range");
+            assert!(x < y, "each pair must be stored as a<b (no self-links)");
+            let pair = (x, y);
+            if let Some(p) = prev {
+                assert!(p < pair, "pairs must be sorted ascending with no duplicates");
+            }
+            prev = Some(pair);
+        }
+    }
+
+    #[test]
+    fn agent_links_empty_radius_or_no_agents_is_empty() {
+        let a = Sim::new(1);
+        assert!(a.agent_links(0.0).is_empty());
+        assert!(a.agent_links(-1.0).is_empty());
     }
 
     #[test]

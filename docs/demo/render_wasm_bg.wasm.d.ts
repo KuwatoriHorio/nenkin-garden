@@ -2,6 +2,7 @@
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
 export const __wbg_sim_free: (a: number, b: number) => void;
+export const sim_agent_links: (a: number, b: number) => [number, number];
 export const sim_agent_positions: (a: number) => [number, number];
 export const sim_compute_graph: (a: number) => void;
 export const sim_graph_edge_comp: (a: number) => [number, number];

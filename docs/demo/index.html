@@ -56,6 +56,7 @@
     <button id="forage" class="primary">🏠 採餌モード: ON</button>
     <button id="mode">🕸 グラフ表示</button>
     <button id="trail">🌫 trail表示: OFF</button>
+    <button id="agentStyle">🧬 樹状表示: ON</button>
     <label class="stat">seed <input id="seed" type="number" value="42" style="width:5em"></label>
   </div>
   <div class="bar stat">
@@ -95,7 +96,11 @@ let playing = true, speed = 30, acc = 0, last = 0;
 let forage = true;                                   // 採餌モード（ホーム凝集＋コホージョン, core-002）
 let mode = 'density';                                // 'density' | 'graph'
 let showTrail = false;                               // trail(密度)表示トグル（render-005: 既定OFF・エージェント表示が既定）
+let neuronStyle = true;                              // エージェント表現: true=樹状(ニューロン), false=従来の点（render-007, 既定=樹状）
 let gcache = null, lastGraph = 0;                    // グラフ幾何のキャッシュ（throttle）
+let lcache = null, lastLinks = 0;                    // agent_links キャッシュ（throttle, render-007）
+const LINK_RADIUS = 5.0;                             // 樹状リンクの探索半径（グリッド座標, agent_links 引数）
+const LINK_THROTTLE_MS = 120;                        // リンク再計算の間隔（決定性は同一State→同一リンクで担保）
 const SCALE = 6;                                     // canvas 内部解像度 = グリッド×SCALE
 const REMOVE_RADIUS = 3.0;
 // 開発用チューニング・パネルの値（render-005）。既定は core Params::default() と同じ見え方になる値。
@@ -113,6 +118,7 @@ function fresh(seed){
   octx = off.getContext('2d');
   cv.width = W * SCALE; cv.height = H * SCALE;
   gcache = null;
+  lcache = null;
   sim.set_collect_rate(collectRate);   // チューニング・パネルの現在値をリセット後にも再適用（実行時setter）
   sim.set_trail_max(trailMax);         // 同様に trail_max も再適用（render-006, set_collect_rate と同型）
 }
@@ -130,8 +136,8 @@ function drawDensity(alpha, withTrail){
   ctx.globalAlpha = 1;
 }
 
-// エージェント（歩き手）を点で描く（render-005: state.ax/ay を読むだけ・非侵襲）。
-function drawAgents(){
+// エージェント（歩き手）を点で描く（render-005: state.ax/ay を読むだけ・非侵襲）。従来表示。
+function drawAgentsAsDots(){
   const p = sim.agent_positions();
   ctx.fillStyle = '#eafcffdd';
   for(let i=0;i<p.length;i+=2){
@@ -139,6 +145,47 @@ function drawAgents(){
     ctx.arc(p[i]*SCALE, p[i+1]*SCALE, 1.5, 0, 6.2832);
     ctx.fill();
   }
+}
+
+// エージェントを近接リンク（agent_links）でつないだ有機的な樹状（ニューロン様）に描く（render-007）。
+// リンクは加算合成の発光する細い枝、エージェントは小さな発光ノードとして描く。
+// State は読むだけ・非侵襲（agent_links 自体が非破壊, リンク幾何は throttle して再計算）。
+function drawAgentsAsNeurons(ts){
+  const p = sim.agent_positions();
+  if(!lcache || ts - lastLinks > LINK_THROTTLE_MS){
+    lcache = sim.agent_links(LINK_RADIUS);
+    lastLinks = ts;
+  }
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';   // 加算合成で有機的な発光に見せる
+  ctx.strokeStyle = 'rgba(150,255,220,0.55)';
+  ctx.lineWidth = 1.1;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  for(let i=0;i<lcache.length;i+=2){
+    const a = lcache[i], b = lcache[i+1];
+    ctx.moveTo(p[a*2]*SCALE, p[a*2+1]*SCALE);
+    ctx.lineTo(p[b*2]*SCALE, p[b*2+1]*SCALE);
+  }
+  ctx.stroke();
+  // 発光ノード: 淡いグローの外輪 + 明るい中心点
+  ctx.fillStyle = 'rgba(180,255,230,0.35)';
+  for(let i=0;i<p.length;i+=2){
+    ctx.beginPath();
+    ctx.arc(p[i]*SCALE, p[i+1]*SCALE, 3.2, 0, 6.2832);
+    ctx.fill();
+  }
+  ctx.fillStyle = '#eafcffee';
+  for(let i=0;i<p.length;i+=2){
+    ctx.beginPath();
+    ctx.arc(p[i]*SCALE, p[i+1]*SCALE, 1.1, 0, 6.2832);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawAgents(ts){
+  if(neuronStyle) drawAgentsAsNeurons(ts); else drawAgentsAsDots();
 }
 
 // 採餌モードのホーム印（◇）を描く。
@@ -200,7 +247,7 @@ function draw(ts){
   ctx.clearRect(0, 0, cv.width, cv.height);   // 毎フレームclear（グラフ下地の0.22が蓄積しないよう）
   // 背景（陸/海）＋trail(任意)は常にまず描く。エージェント点＋砂糖＋ホーム印は常に描く（render-005）。
   const sugars = (mode==='graph') ? drawGraph(ts) : (drawDensity(1.0, showTrail), drawSugars());
-  drawAgents();
+  drawAgents(ts);
   drawHome();
   document.getElementById('tick').textContent = sim.tick();
   document.getElementById('sugars').textContent = sugars;
@@ -215,6 +262,7 @@ function loop(ts){
     let n = 0;
     while(acc >= 1 && n < 400){ sim.step(); acc -= 1; n++; }
     if(playing) gcache = null;   // 進んだらグラフ幾何は次フレームで再計算
+    // lcache（樹状リンク）は drawAgentsAsNeurons 内で throttle 済みなのでここでは無効化しない
   }
   draw(ts);
   requestAnimationFrame(loop);
@@ -257,6 +305,10 @@ document.getElementById('mode').addEventListener('click', e=>{
 document.getElementById('trail').addEventListener('click', e=>{
   showTrail = !showTrail;
   e.target.textContent = showTrail ? '🌫 trail表示: ON' : '🌫 trail表示: OFF';
+});
+document.getElementById('agentStyle').addEventListener('click', e=>{
+  neuronStyle = !neuronStyle;
+  e.target.textContent = neuronStyle ? '🧬 樹状表示: ON' : '🧬 樹状表示: OFF';
 });
 document.getElementById('strength').addEventListener('input', e=>{
   strength = +e.target.value;

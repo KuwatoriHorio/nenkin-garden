@@ -18,6 +18,21 @@ export class Sim {
         wasm.__wbg_sim_free(ptr, 0);
     }
     /**
+     * 近接エージェントを結ぶリンクを flat `[a0,b0,a1,b1,...]`（エージェント index ペア, a<b）で
+     * 返す（render-007）。グリッド空間分割で近傍探索し O(n) 程度に抑える。各エージェントは
+     * 半径 `radius` 内の最近傍**最大2本**にのみ結ぶ（半径内全結合の密網にはしない）ことで、
+     * ニューロン様の枝分かれした樹状に見せる。出力は (a,b) 昇順ソート・重複排除・自己リンク無し
+     * の決定論的順序。`state.ax/ay` を読むだけ・非侵襲（`agent_positions` と同型）。
+     * @param {number} radius
+     * @returns {Uint32Array}
+     */
+    agent_links(radius) {
+        const ret = wasm.sim_agent_links(this.__wbg_ptr, radius);
+        var v1 = getArrayU32FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+        return v1;
+    }
+    /**
      * エージェント位置を flat 配列 [x0,y0,x1,y1,...]（グリッド座標）で返す（render-005）。
      * `state.ax/ay` を読むだけ・非侵襲（sugar_positions と同型）。
      * @returns {Float32Array}

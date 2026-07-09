@@ -3,7 +3,12 @@
 `loop-engineering-rules-v0.md` §11 のフォーマットに沿ったタスク文（人間所有）。
 **前提**: `render-001〜006` 完了（対話デモ稼働・エージェント点描画あり）。
 
-> **状態: 🔵 未着手（§8.1 で人間確認待ち）**
+> **状態: ✅ 完了**（2026-07-07, iter:19）— render-wasm に `agent_links(radius)`（グリッド近傍・
+> 最近傍最大2本・決定論 BTreeSet 出力・非侵襲）を追加。デモにニューロン樹状レンダラ
+> `drawAgentsAsNeurons`（加算合成の発光する枝＋発光ノード・throttle）を実装、既定=樹状・
+> 点表示トグル `#agentStyle` を残す。見た目はユーザー確定「ニューロン樹状（線）」。render-wasm 11
+> テスト緑、core/保護ファイル無変更。ブラウザ実測で樹状描画・トグル・エラー無し・性能を確認。
+> 実装 nenkin-implementer(sonnet)、ブラウザ検証・keep はオーケストレーター(opus)。
 
 ---
 

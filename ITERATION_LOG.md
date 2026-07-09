@@ -439,3 +439,29 @@
     局在化緩和の定量効果は core-004（L 中央値 21%低下）で実証済み。render-006 はスライダー配線と
     デモ健全性をブラウザで確認。§0 の動詞不変（trail_max は開発用チューニング）。core←render 一方向維持。
 ```
+
+```
+- iter: 19
+  task: render-007
+  hypothesis: 近接エージェントを枝でつなぐ agent_links を足し、加算合成の発光する枝＋ノードで
+              描けば、独立した点でなく有機的な樹状（ニューロン）として枝を伸ばして広がる見え方になる。
+  diff_summary: |
+    render-wasm/src/lib.rs: agent_links(radius)（グリッド空間分割で近傍探索・各agent最近傍最大2本・
+    (a,b)昇順 BTreeSet で決定論出力・自己リンク無し・非侵襲）、native test 3件。
+    docs/demo/index.html: drawAgentsAsNeurons（globalCompositeOperation=lighter の発光枝＋発光ノード・
+    LINK_THROTTLE_MS=120）、drawAgentsAsDots を従来表示として保持、#agentStyle トグル（既定=樹状ON）。
+    wasm/JS glue 再生成。
+  seeds: [42]（render は読むだけ・非侵襲/決定性を native test で担保）
+  invariants: pass  # core(src/) 無変更。render-wasm 11テスト緑。core 全テストも緑（workspace）。
+  metrics: |
+    ブラウザ実測(seed42): 既定で樹状（発光する枝でつながった有機的構造）が描画、採餌で枝が伸長、
+    #agentStyle トグルで点表示へ切替、tick5765/速度120でも快適・コンソールエラー無し。
+    native: agent_links は同一State→同一リンク・呼び出し前後で state_hash 不変・index有効/a<b/自己リンク無し。
+  goldens_updated: "docs/demo 再生成（wasm/js/index.html）"
+  models: { orchestrator: opus, implement: sonnet(nenkin-implementer), verify: opus(+browser), record: opus }
+  decision: keep
+  note: |
+    見た目の方向性はユーザー確定「ニューロン樹状（線ベース）」。表現(render)のみ変更で step は不変
+    （§0 動詞・core←render 一方向維持）。密メッシュを避け最近傍最大2本で樹状に。カスタム
+    サブエージェント nenkin-implementer を型名で直接起動（今session でロード済み）。
+```
