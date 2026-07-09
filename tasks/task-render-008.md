@@ -3,11 +3,7 @@
 `loop-engineering-rules-v0.md` §11 のフォーマットに沿ったタスク文（人間所有）。
 **前提**: `render-007`（ニューロン樹状表現・`#agentStyle` トグル・`agent_links`）完了・全テスト緑。
 
-> **状態: ✅ 完了**（2026-07-07, iter:20）— `drawAgentsAsAmoeba`（放射状グラデの発光ブロブを
-> 加算合成で融合＝原形質様）を追加。`agentStyle` を3状態（neuron/amoeba/dots）巡回に拡張、
-> `#agentStyle` は 樹状→アメーバ→点→… でラベル更新、既定=樹状。**docs/demo/index.html のみ**変更
-> （render-wasm/core 無変更・wasm 再生成不要）。ブラウザ実測で3表現の切替・アメーバの見た目・
-> エラー無しを確認。実装 nenkin-implementer(sonnet)、検証・keep はオーケストレーター(opus)。
+> **状態: 🔵 未着手（§8.1 で人間確認待ち）**
 
 ---
 

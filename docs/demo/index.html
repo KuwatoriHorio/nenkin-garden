@@ -56,7 +56,7 @@
     <button id="forage" class="primary">🏠 採餌モード: ON</button>
     <button id="mode">🕸 グラフ表示</button>
     <button id="trail">🌫 trail表示: OFF</button>
-    <button id="agentStyle">🧬 表現: 樹状</button>
+    <button id="agentStyle">🧬 樹状表示: ON</button>
     <label class="stat">seed <input id="seed" type="number" value="42" style="width:5em"></label>
   </div>
   <div class="bar stat">
@@ -96,7 +96,7 @@ let playing = true, speed = 30, acc = 0, last = 0;
 let forage = true;                                   // 採餌モード（ホーム凝集＋コホージョン, core-002）
 let mode = 'density';                                // 'density' | 'graph'
 let showTrail = false;                               // trail(密度)表示トグル（render-005: 既定OFF・エージェント表示が既定）
-let agentStyle = 'neuron';                            // エージェント表現: 'neuron'=樹状 | 'amoeba'=アメーバ | 'dots'=点（render-008, 3択巡回・既定=樹状）
+let neuronStyle = true;                              // エージェント表現: true=樹状(ニューロン), false=従来の点（render-007, 既定=樹状）
 let gcache = null, lastGraph = 0;                    // グラフ幾何のキャッシュ（throttle）
 let lcache = null, lastLinks = 0;                    // agent_links キャッシュ（throttle, render-007）
 const LINK_RADIUS = 5.0;                             // 樹状リンクの探索半径（グリッド座標, agent_links 引数）
@@ -184,39 +184,8 @@ function drawAgentsAsNeurons(ts){
   ctx.restore();
 }
 
-// エージェントを柔らかい放射状グラデーションのブロブとして描き、加算合成で融合させる
-// 「にじむ発光膜＝原形質様」表現（render-008）。State は読むだけ・非侵襲。
-function drawAgentsAsAmoeba(){
-  const p = sim.agent_positions();
-  const r = SCALE * 2.6;   // ブロブ半径（数セル分）
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';   // 加算合成で重なりを融合させ連続した膜に見せる
-  for(let i=0;i<p.length;i+=2){
-    const x = p[i]*SCALE, y = p[i+1]*SCALE;
-    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
-    g.addColorStop(0, 'rgba(150,255,210,0.30)');
-    g.addColorStop(0.5, 'rgba(120,255,200,0.14)');
-    g.addColorStop(1, 'rgba(120,255,200,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, 6.2832);
-    ctx.fill();
-  }
-  // 中心の小さな明点（核のような凝集点）
-  ctx.fillStyle = 'rgba(230,255,245,0.5)';
-  for(let i=0;i<p.length;i+=2){
-    ctx.beginPath();
-    ctx.arc(p[i]*SCALE, p[i+1]*SCALE, 1.2, 0, 6.2832);
-    ctx.fill();
-  }
-  ctx.restore();
-  ctx.globalCompositeOperation = 'source-over';
-}
-
 function drawAgents(ts){
-  if(agentStyle === 'neuron') drawAgentsAsNeurons(ts);
-  else if(agentStyle === 'amoeba') drawAgentsAsAmoeba();
-  else drawAgentsAsDots();
+  if(neuronStyle) drawAgentsAsNeurons(ts); else drawAgentsAsDots();
 }
 
 // 採餌モードのホーム印（◇）を描く。
@@ -337,11 +306,9 @@ document.getElementById('trail').addEventListener('click', e=>{
   showTrail = !showTrail;
   e.target.textContent = showTrail ? '🌫 trail表示: ON' : '🌫 trail表示: OFF';
 });
-const AGENT_STYLE_CYCLE = { neuron: 'amoeba', amoeba: 'dots', dots: 'neuron' };
-const AGENT_STYLE_LABEL = { neuron: '🧬 表現: 樹状', amoeba: '🧬 表現: アメーバ', dots: '🧬 表現: 点' };
 document.getElementById('agentStyle').addEventListener('click', e=>{
-  agentStyle = AGENT_STYLE_CYCLE[agentStyle];
-  e.target.textContent = AGENT_STYLE_LABEL[agentStyle];
+  neuronStyle = !neuronStyle;
+  e.target.textContent = neuronStyle ? '🧬 樹状表示: ON' : '🧬 樹状表示: OFF';
 });
 document.getElementById('strength').addEventListener('input', e=>{
   strength = +e.target.value;

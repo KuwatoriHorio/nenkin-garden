@@ -465,26 +465,3 @@
     （§0 動詞・core←render 一方向維持）。密メッシュを避け最近傍最大2本で樹状に。カスタム
     サブエージェント nenkin-implementer を型名で直接起動（今session でロード済み）。
 ```
-
-```
-- iter: 20
-  task: render-008
-  hypothesis: agent_positions() を放射状グラデの発光ブロブで加算合成すれば、重なりが融合して
-              にじむ発光膜（アメーバ/原形質様）に見える。表現を樹状/アメーバ/点の3択にできる。
-  diff_summary: |
-    docs/demo/index.html のみ: drawAgentsAsAmoeba（createRadialGradient の柔らかいブロブ・
-    globalCompositeOperation=lighter で融合・シアン緑・中心明点）追加。boolean neuronStyle を
-    3状態 agentStyle {'neuron','amoeba','dots'} に置換、#agentStyle を巡回（樹状→アメーバ→点）・
-    ラベル更新、ディスパッチャ drawAgents が3描画関数を切替。既定=樹状。
-  seeds: [42]（描画のみ・core/render-wasm 無変更）
-  invariants: pass  # core/render-wasm 無変更＝全テスト不変で緑。wasm 再生成不要。
-  metrics: |
-    ブラウザ実測(seed42): 表現トグルが 樹状→アメーバ→点→樹状 で巡回、アメーバは融合した発光膜
-    （原形質様）として描画、コンソールエラー無し。変更は docs/demo/index.html のみ。
-  goldens_updated: none  # デモHTMLのみ・生成物も無変更。
-  models: { orchestrator: opus, implement: sonnet(nenkin-implementer), verify: opus(+browser), record: opus }
-  decision: keep
-  note: |
-    見た目はユーザー確定「にじむ発光膜=原形質様」。表現(render)のみでcore/render-wasm非変更
-    （wasm再生成不要）＝最小変更。§0 動詞不変。核心の「判定はコード」に対し、視覚は人間(ブラウザ)確認。
-```
