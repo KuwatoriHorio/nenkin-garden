@@ -494,3 +494,27 @@
     「または」条項を満たす）＝§7ごまかしでないとオーケストレーターが精読確認。描画は後続（木は
     render-007 ニューロン表現と好相性）。
 ```
+
+```
+- iter: 22
+  task: render-tree-001
+  hypothesis: TreeSim(wasm) で src/tree を駆動し、親子パスを発光する枝として別ページに描けば、
+              木モデルの伸び・分岐・退縮をブラウザで観察できる（core/木モデル力学は非変更）。
+  diff_summary: |
+    render-wasm/src/lib.rs: TreeSim（Sim と別struct・TreeState/TreeParams/World を保持し tree_step で
+    駆動）＋ new_tree/step/place-remove sugar/sugar_positions/tree_nodes/tree_edges/tree_state_hash_hex/
+    render(land-sea)/home_x/y。native test 2件。docs/demo-tree/ 新規（発光枝＋ノード描画・砂糖操作・
+    再生/速度/reset/seed）。docs/index.html に導線1つ。wasm/JS glue を demo-tree へ出力。
+  seeds: [42]（render は駆動して読むだけ・決定性を native test で担保）
+  invariants: pass  # Jones core・src/tree 力学 無変更。render-wasm 13テスト緑・core+tree 全テスト不変で緑。
+  metrics: |
+    ブラウザ実測(seed42): ホーム根から砂糖へ枝が伸長、2箇所で枝分かれ、砂糖除去で根まで退縮、
+    コンソールエラー無し。native: 同一seed・同一op列→同一 tree_state_hash（決定性）、
+    tree_edges.len==2*(nodes-1)（連結木）。既存 Sim テストは不変で緑。
+  goldens_updated: "docs/demo-tree 新規（wasm/js/index.html）＋ docs/index.html 導線"
+  models: { orchestrator: opus, implement: sonnet(nenkin-implementer), verify: opus(+browser), record: opus }
+  decision: keep
+  note: |
+    別ページ実装（ユーザー確定）で既存 Jones デモ docs/demo/ は無変更。TreeSim は tree_step を回すだけで
+    木モデルの成長規則は不変（core←render 一方向）。木構造は本質的に樹状なので render-007 の発光枝描画を流用。
+```

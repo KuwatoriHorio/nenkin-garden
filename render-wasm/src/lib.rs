@@ -11,6 +11,7 @@ use nenkin_garden::analysis::analyze;
 use nenkin_garden::graph_svg::mst_edge_set;
 use nenkin_garden::params::Params;
 use nenkin_garden::state::{apply_op, initial_state, Op, State};
+use nenkin_garden::tree::{initial_tree_state, tree_state_hash, tree_step, TreeParams, TreeState};
 use nenkin_garden::world::{make_synthetic_archipelago, World};
 use nenkin_garden::{state_hash, step};
 
@@ -343,6 +344,160 @@ impl Sim {
     }
 }
 
+/// render-tree-001: 成長木モデル（`nenkin_garden::tree`）を wasm で駆動する render レイヤ。
+/// `Sim`（Jones モデル）とは別 struct・別ページ（`docs/demo-tree/`）専用。
+/// 木モデルの力学（`tree_step`）は変えない・駆動して読むだけ（core ← render の一方向依存）。
+#[wasm_bindgen]
+pub struct TreeSim {
+    world: World,
+    params: TreeParams,
+    state: TreeState,
+    pending: Vec<Op>,
+    pixels: Vec<u8>, // RGBA, グリッド解像度 (w*h*4)。地形（陸/海）のみ・trail 場は無い。
+}
+
+#[wasm_bindgen]
+impl TreeSim {
+    /// seed から新しい成長木シミュレーションを作る（既定 TreeParams・World は既存合成列島を共有）。
+    /// wasm_bindgen コンストラクタと衝突しないよう、関連関数として公開する。
+    pub fn new_tree(seed: u32) -> TreeSim {
+        let world = make_synthetic_archipelago(&Params::default());
+        let params = TreeParams::default();
+        let state = initial_tree_state(seed as u64, &world, &params);
+        let pixels = vec![0u8; world.w * world.h * 4];
+        TreeSim { world, params, state, pending: Vec::new(), pixels }
+    }
+
+    /// ホーム座標（グリッド座標）。根ノードの初期位置と一致する。
+    pub fn home_x(&self) -> f32 {
+        self.world.default_home(self.params.e_lo).0 as f32
+    }
+    pub fn home_y(&self) -> f32 {
+        self.world.default_home(self.params.e_lo).1 as f32
+    }
+
+    pub fn width(&self) -> usize {
+        self.world.w
+    }
+
+    pub fn height(&self) -> usize {
+        self.world.h
+    }
+
+    pub fn tick(&self) -> u32 {
+        self.state.tick as u32
+    }
+
+    /// 1 tick 進める。保留中の砂糖 op を tick 境界で適用してから tree_step する（決定性）。
+    pub fn step(&mut self) {
+        let ops: Vec<Op> = std::mem::take(&mut self.pending);
+        tree_step(&mut self.state, &self.world, &self.params, &ops);
+    }
+
+    /// canvas クリック → セル → place_sugar（陸のみ）。置けたら true（`Sim` と同型）。
+    pub fn place_sugar_at_canvas(&mut self, cx: f64, cy: f64, cw: f64, ch: f64, strength: f64) -> bool {
+        let (gx, gy) = canvas_to_cell(cx, cy, cw, ch, self.world.w, self.world.h);
+        if !self.world.land_mask[gy * self.world.w + gx] {
+            return false; // 海には置かない
+        }
+        self.pending.push(Op::PlaceSugar {
+            x: gx as f64 + 0.5,
+            y: gy as f64 + 0.5,
+            strength,
+        });
+        true
+    }
+
+    /// canvas クリック近傍の砂糖源を1つ取り除く（半径 radius セル内で最近傍）。
+    pub fn remove_sugar_at_canvas(&mut self, cx: f64, cy: f64, cw: f64, ch: f64, radius: f64) -> bool {
+        let (gx, gy) = canvas_to_cell(cx, cy, cw, ch, self.world.w, self.world.h);
+        let (px, py) = (gx as f64 + 0.5, gy as f64 + 0.5);
+        let mut best: Option<(u64, f64)> = None;
+        for i in 0..self.state.sugar_id.len() {
+            let dx = self.state.sugar_x[i] - px;
+            let dy = self.state.sugar_y[i] - py;
+            let d = (dx * dx + dy * dy).sqrt();
+            if d <= radius && best.map_or(true, |(_, bd)| d < bd) {
+                best = Some((self.state.sugar_id[i], d));
+            }
+        }
+        if let Some((id, _)) = best {
+            self.pending.push(Op::RemoveSugar { id });
+            true
+        } else {
+            false
+        }
+    }
+
+    /// 砂糖源の位置を flat 配列 [x0,y0,x1,y1,...]（グリッド座標）で返す。
+    pub fn sugar_positions(&self) -> Vec<f32> {
+        let mut v = Vec::with_capacity(self.state.sugar_x.len() * 2);
+        for i in 0..self.state.sugar_x.len() {
+            v.push(self.state.sugar_x[i] as f32);
+            v.push(self.state.sugar_y[i] as f32);
+        }
+        v
+    }
+
+    /// 木ノードの座標を flat 配列 [x0,y0,x1,y1,...]（グリッド座標, index 昇順）で返す。
+    /// `state.nodes` を読むだけ・非侵襲。
+    pub fn tree_nodes(&self) -> Vec<f32> {
+        let mut v = Vec::with_capacity(self.state.nodes.len() * 2);
+        for n in &self.state.nodes {
+            v.push(n.x);
+            v.push(n.y);
+        }
+        v
+    }
+
+    /// 親子パスを flat 配列 [child0,parent0,child1,parent1,...]（node index ペア）で返す。
+    /// 根（parent=None）は辺を持たない。木は単一連結・閉路なしなので
+    /// 辺数 == ノード数-1（`n_nodes()>=1` を前提, index 昇順で決定的）。
+    pub fn tree_edges(&self) -> Vec<u32> {
+        let mut v = Vec::with_capacity(self.state.nodes.len().saturating_sub(1) * 2);
+        for (i, n) in self.state.nodes.iter().enumerate() {
+            if let Some(par) = n.parent {
+                v.push(i as u32);
+                v.push(par as u32);
+            }
+        }
+        v
+    }
+
+    /// 決定性検証用: 現在 TreeState の 64bit ハッシュを16進文字列で返す。
+    pub fn tree_state_hash_hex(&self) -> String {
+        format!("{:016x}", tree_state_hash(&self.state, &self.params))
+    }
+
+    /// 現在 State を RGBA バッファへ地形（陸/海）のみ描画する（trail 場は無い）。
+    /// State は読むだけ・非侵襲。
+    pub fn render(&mut self) {
+        let (w, h) = (self.world.w, self.world.h);
+        for i in 0..w * h {
+            let (r, g, b) = if self.world.land_mask[i] {
+                let e = self.world.e[i] as f64;
+                land_color(e)
+            } else {
+                (11.0, 30.0, 45.0) // 海
+            };
+            let o = i * 4;
+            self.pixels[o] = r as u8;
+            self.pixels[o + 1] = g as u8;
+            self.pixels[o + 2] = b as u8;
+            self.pixels[o + 3] = 255;
+        }
+    }
+
+    /// RGBA バッファの先頭ポインタ（JS が wasm memory から読む）。
+    pub fn pixels_ptr(&self) -> *const u8 {
+        self.pixels.as_ptr()
+    }
+
+    pub fn pixels_len(&self) -> usize {
+        self.pixels.len()
+    }
+}
+
 /// 保留 op を適用せずに単純ステップする内部用（テスト・ヘッドレス比較用, wasm 非公開）。
 pub fn apply_op_now(sim_state: &mut State, op: &Op) {
     apply_op(sim_state, op);
@@ -529,6 +684,72 @@ mod tests {
             y.step();
         }
         assert_eq!(x.state_hash_hex(), y.state_hash_hex());
+    }
+
+    // --- render-tree-001: TreeSim（成長木モデル）のnative test ---
+
+    #[test]
+    fn tree_sim_same_ops_yield_same_hash() {
+        let mut a = TreeSim::new_tree(42);
+        let mut b = TreeSim::new_tree(42);
+        for i in 0..30 {
+            if i == 5 {
+                let (hx, hy) = (a.home_x() as f64, a.home_y() as f64);
+                a.place_sugar_at_canvas(
+                    (hx + 10.0) * 5.0,
+                    hy * 5.0,
+                    a.world.w as f64 * 5.0,
+                    a.world.h as f64 * 5.0,
+                    80.0,
+                );
+                let (hx2, hy2) = (b.home_x() as f64, b.home_y() as f64);
+                b.place_sugar_at_canvas(
+                    (hx2 + 10.0) * 5.0,
+                    hy2 * 5.0,
+                    b.world.w as f64 * 5.0,
+                    b.world.h as f64 * 5.0,
+                    80.0,
+                );
+            }
+            a.step();
+            b.step();
+        }
+        // 同一 seed・同一操作列 → 同一 tree_state_hash（決定性契約）
+        assert_eq!(a.tree_state_hash_hex(), b.tree_state_hash_hex());
+
+        // render は State を書き換えない（前後で hash 不変）
+        let h = a.tree_state_hash_hex();
+        a.render();
+        assert_eq!(a.tree_state_hash_hex(), h);
+    }
+
+    #[test]
+    fn tree_sim_edges_form_a_connected_tree() {
+        let mut a = TreeSim::new_tree(7);
+        let (hx, hy) = (a.home_x() as f64, a.home_y() as f64);
+        for i in 0..40 {
+            if i == 3 {
+                a.place_sugar_at_canvas(
+                    (hx + 15.0) * 5.0,
+                    (hy - 8.0) * 5.0,
+                    a.world.w as f64 * 5.0,
+                    a.world.h as f64 * 5.0,
+                    150.0,
+                );
+                a.place_sugar_at_canvas(
+                    (hx - 12.0) * 5.0,
+                    (hy + 14.0) * 5.0,
+                    a.world.w as f64 * 5.0,
+                    a.world.h as f64 * 5.0,
+                    150.0,
+                );
+            }
+            a.step();
+        }
+        let n_nodes = a.tree_nodes().len() / 2;
+        assert!(n_nodes >= 1, "tree should have at least the root node");
+        // 連結木・根1つ: edges.len() == 2*(nodes数-1)
+        assert_eq!(a.tree_edges().len(), 2 * (n_nodes - 1));
     }
 
     #[test]

@@ -4,7 +4,11 @@
 **前提**: [tree-growth-001](task-tree-growth-001.md)（α成長木モデル・ヘッドレス）完了・全テスト緑。
 `render-001〜007`（Jones デモ・render-wasm 基盤）完了。
 
-> **状態: 🔵 未着手（§8.1 で人間確認待ち）**
+> **状態: ✅ 完了**（2026-07-09, iter:22）— render-wasm に `TreeSim`（`src/tree` を駆動して読む・
+> `Sim` と別struct）を追加、別ページ `docs/demo-tree/` を新設（発光する枝＋ノード・砂糖操作・
+> 再生/速度/reset/seed）、トップに導線。render-wasm 13テスト緑（新規2: 決定性・辺=ノード−1）。
+> Jones core/デモ/保護ファイル・木モデル力学は無変更。ブラウザ実測で 伸び/分岐/根まで退縮・
+> エラー無しを確認。実装 nenkin-implementer(sonnet)、ブラウザ検証・keep はオーケストレーター(opus)。
 
 ---
 
