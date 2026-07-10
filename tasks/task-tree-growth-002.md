@@ -3,7 +3,12 @@
 `loop-engineering-rules-v0.md` §11 のフォーマットに沿ったタスク文（人間所有）。
 **前提**: [tree-growth-001](task-tree-growth-001.md)（α成長木モデル）完了・全テスト緑。
 
-> **状態: 🔵 未着手（§8.1 で人間確認待ち）**
+> **状態: ✅ 完了**（2026-07-09, iter:23）— `TreeParams` に `w_rand`（既定 0.0=探索オフ）と
+> `explore_persistence`（既定 0.45）を追加。`tree_step` で `w_rand>0` のとき tip 方向を
+> ランダム(state.rng)＋誘引でブレンド、誘引無し tip も予算内で探索伸長（退縮に代え）。既定オフは
+> 現行コードパスそのままでバイト不変。実装中に persistence>0.5 の恒久デッドロックを発見し 0.45 採用、
+> 非放射移動の保存則リークを w_rand>0 に gate して修正。新規 tests/tree_growth_002.rs 6件緑、
+> tree_growth_001 は無傷。実装 nenkin-implementer(sonnet)、精読＋独立再実行・keep はオーケストレーター(opus)。
 
 ---
 

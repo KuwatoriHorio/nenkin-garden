@@ -53,6 +53,19 @@ pub struct TreeParams {
     pub q_pos: f64,
     /// state_hash の体積/距離量子化幅。
     pub q_vol: f64,
+    /// ランダム探索方向の重み（tree-growth-002）。0.0=探索オフ（既定・現行挙動と完全同一）。
+    /// >0 で `dir = normalize(w_rand*rand_unit + Σ attractor_weight_i*attractor_dir_i)` に
+    /// ブレンドし、誘引の無い tip も探索的に伸長する。
+    pub w_rand: f64,
+    /// 探索方向の持続性（0..1）。tip の直前の進行方向（親→tipベクトル）と新規ランダム方向を
+    /// この重みで混ぜ、滑らかな彷徨いにする（純ジッタでなく相関ランダムウォーク）。
+    /// `w_rand==0.0` のときは参照されない。
+    /// **0.5 を超えないこと**: 直前方向の重みが新規ランダム方向の重みを上回ると、tip が海方向で
+    /// 動けなくなった場合に（位置が更新されないため直前方向が固定され続け）ブレンド方向の取り得る
+    /// 角度範囲が狭い扇形に限定され、その扇形がまるごと海だと**恒久的にデッドロック**する
+    /// （実測で確認済み）。0.5 以下なら2ベクトルの重み付き和が全方位を連続的に取り得るため、
+    /// 十分な乱数試行で必ず陸方向を再発見できる（保存則の「尽きたら止まる」＝予算律速のみを許容）。
+    pub explore_persistence: f64,
 }
 
 impl Default for TreeParams {
@@ -74,6 +87,8 @@ impl Default for TreeParams {
             prune_eps: 1.0e-6,
             q_pos: 1.0e-4,
             q_vol: 1.0e-4,
+            w_rand: 0.0,
+            explore_persistence: 0.45,
         }
     }
 }

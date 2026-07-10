@@ -518,3 +518,29 @@
     別ページ実装（ユーザー確定）で既存 Jones デモ docs/demo/ は無変更。TreeSim は tree_step を回すだけで
     木モデルの成長規則は不変（core←render 一方向）。木構造は本質的に樹状なので render-007 の発光枝描画を流用。
 ```
+
+```
+- iter: 23
+  task: tree-growth-002
+  hypothesis: tip 成長方向を w_rand·ランダム(state.rng)＋Σ誘引 のブレンドにすれば、砂糖なしでも
+              予算内で探索伸長し、近くの砂糖では誘引が支配して到達する。既定オフで既存を無傷に保てる。
+  diff_summary: |
+    src/tree/state.rs: TreeParams に w_rand(既定0.0=探索オフ)・explore_persistence(既定0.45)追加。
+    src/tree/step.rs: w_rand>0 のとき tip 毎に state.rng を1本引き persistence 混合のランダム単位
+    ベクトルを誘引方向へ w_rand 重みで合成（誘引無し tip も探索候補に・退縮に代え予算内で伸長）。
+    w_rand<=0 は現行コードパスそのまま（rng不引き・バイト不変）。非放射移動の保存則リーク
+    （Δd<dd の差 k·(dd-Δd)）を consumed 計上する会計修正も w_rand>0 に gate。tests/tree_growth_002.rs 新規6件。
+  seeds: [1,42,1337]（S9部分集合・中央値）。探索値 w_rand=0.3 / explore_persistence=0.45（実測選定）
+  invariants: pass  # 既定 w_rand=0 で tree_growth_001 6件 hash 不変・全緑。tree_growth_002 6件緑。
+  metrics: |
+    ①砂糖なし探索でノード/構造長増（baseline w_rand=0 は根のみ=伸びず）②T=400→900 でプラトー・
+    initial_budget 内・全tickで total_volume==collected-consumed ③w_rand>0 でも近砂糖へ到達(<=sugar_radius)
+    ④砂糖有/無とも同一seed→同一hash ⑤境界=陸内/木性/標高忌避 ⑥既定 w_rand==0.0。全スイート緑・exit0。
+  goldens_updated: none  # 既定オフで既存ゴールデン不変（tree_growth_001 無編集）。
+  models: { orchestrator: opus, implement: sonnet(nenkin-implementer), verify: opus, record: opus }
+  decision: keep
+  note: |
+    実装中の2発見を精読検証: persistence>0.5 は海方向で方向固定→恒久デッドロック（0.45採用）、
+    非放射移動の保存則リークは実バグ→w_rand>0 に gate して consumed 計上で厳密化（②で実証）。
+    いずれもテスト非弱化・既定バイト維持。探索デモ露出は後続 render-tree タスク（TreeSim に w_rand 露出）。
+```

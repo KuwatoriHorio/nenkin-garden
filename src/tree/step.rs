@@ -173,10 +173,58 @@ pub fn tree_step(state: &mut TreeState, world: &World, p: &TreeParams, ops: &[Op
     let mut plans: Vec<TipPlan> = Vec::new();
     for &ti in &tips {
         let dirs = attractor_dirs(state, ti, p);
-        if dirs.is_empty() {
+        // w_rand==0.0（既定）は現行と完全同一のコードパス（rng を一切引かない）。
+        if p.w_rand <= 0.0 {
+            if dirs.is_empty() {
+                continue;
+            }
+            let clusters = cluster_dirs(&dirs, p.branch_angle_threshold);
+            let weight: f64 = clusters.iter().map(|c| c.2).sum();
+            if weight > 0.0 {
+                plans.push(TipPlan { idx: ti, weight, clusters });
+            }
             continue;
         }
-        let clusters = cluster_dirs(&dirs, p.branch_angle_threshold);
+
+        // --- tree-growth-002: ランダム探索（w_rand>0 のときのみ）。
+        // 決定性: tip は id 昇順(=tips の並び)で処理し、その順に state.rng を1回だけ引く。
+        let mut clusters = cluster_dirs(&dirs, p.branch_angle_threshold);
+        let raw_ang = state.rng.next_f64() * std::f64::consts::TAU;
+        let (fresh_x, fresh_y) = (raw_ang.cos(), raw_ang.sin());
+        // 探索の持続性: 直前の進行方向（親→tip ベクトル）とフレッシュな乱数方向を混ぜ、
+        // 滑らかな彷徨いにする（純ジッタでなく相関ランダムウォーク）。根や縮みきったtipは
+        // 直前方向が定義できないためフレッシュ方向のみを使う。
+        let (rdx, rdy) = match state.nodes[ti].parent {
+            Some(par) => {
+                let pdx = state.nodes[ti].x as f64 - state.nodes[par].x as f64;
+                let pdy = state.nodes[ti].y as f64 - state.nodes[par].y as f64;
+                let pd = (pdx * pdx + pdy * pdy).sqrt();
+                if pd > 1.0e-9 {
+                    let (ux, uy) = (pdx / pd, pdy / pd);
+                    let bx = p.explore_persistence * ux + (1.0 - p.explore_persistence) * fresh_x;
+                    let by = p.explore_persistence * uy + (1.0 - p.explore_persistence) * fresh_y;
+                    let n = (bx * bx + by * by).sqrt().max(1.0e-9);
+                    (bx / n, by / n)
+                } else {
+                    (fresh_x, fresh_y)
+                }
+            }
+            None => (fresh_x, fresh_y),
+        };
+
+        if clusters.is_empty() {
+            // 誘引の無い tip: 探索方向のみの単一クラスタ（min_dist上限なし＝max_step_per_tickのみが上限）。
+            clusters.push((rdx, rdy, p.w_rand, f64::INFINITY));
+        } else {
+            // 誘引方向にランダム方向をブレンド: 近い/強い誘引ほど誘引側の重み(cw)が大きく支配する。
+            for c in clusters.iter_mut() {
+                let (cdx, cdy, cw, cmin) = *c;
+                let bx = p.w_rand * rdx + cw * cdx;
+                let by = p.w_rand * rdy + cw * cdy;
+                let n = (bx * bx + by * by).sqrt().max(1.0e-9);
+                *c = (bx / n, by / n, cw, cmin);
+            }
+        }
         let weight: f64 = clusters.iter().map(|c| c.2).sum();
         if weight > 0.0 {
             plans.push(TipPlan { idx: ti, weight, clusters });
@@ -246,6 +294,19 @@ pub fn tree_step(state: &mut TreeState, world: &World, p: &TreeParams, ops: &[Op
                 } else {
                     if state.b_free < cshare {
                         continue;
+                    }
+                    // tree-growth-002 (w_rand>0 のときのみ・既定挙動は変えない):
+                    // 移動方向がその tip の親→tip 軸と非整合（斜め/後退）だと、三角不等式より
+                    // 実際の構造長変化 Δd_i = new_d - cur_d は dd 未満になりうる。差分
+                    // k*(dd-Δd_i) (>=0) を追加で consumed に計上し、total_volume==collected-consumed
+                    // を厳密に保つ（探索方向は誘引と違い親軸に沿うとは限らないため必要）。
+                    if p.w_rand > 0.0 {
+                        if let Some(par) = state.nodes[ti].parent {
+                            let (px, py) = (state.nodes[par].x as f64, state.nodes[par].y as f64);
+                            let new_d = ((tx2 - px).powi(2) + (ty2 - py).powi(2)).sqrt();
+                            let waste = (p.k * (dd - (new_d - cur_d))).max(0.0);
+                            state.consumed_total += waste;
+                        }
                     }
                     state.nodes[ti].x = tx2 as f32;
                     state.nodes[ti].y = ty2 as f32;
