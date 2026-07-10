@@ -4,7 +4,11 @@
 **前提**: [tree-growth-002](task-tree-growth-002.md)（`w_rand` によるランダム探索伸長・既定オフ）完了・全テスト緑。
 [render-tree-001](task-render-tree-001.md)（`TreeSim`・`docs/demo-tree/`）完了。
 
-> **状態: 🔵 未着手（§8.1 で人間確認待ち）**
+> **状態: ✅ 完了**（2026-07-09, iter:24）— `TreeSim` に `set_w_rand`/`set_explore_persistence`（実行中
+> params のみ・既定不変）を追加、`docs/demo-tree/` に探索強度 w_rand スライダー（id=wrand・0〜1・
+> step0.05・初期0.3）を実装（fresh で再適用）。render-wasm 15テスト緑（新規2）。木モデル力学・
+> TreeParams 既定・Jones core/デモは無変更。ブラウザ実測: w_rand=0.3 砂糖なしで彷徨い/0で育たず/
+> 砂糖で誘引支配到達・エラー無し。実装 nenkin-implementer(sonnet)、ブラウザ検証・keep はオーケストレーター(opus)。
 
 ---
 

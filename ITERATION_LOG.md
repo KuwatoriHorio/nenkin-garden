@@ -544,3 +544,26 @@
     非放射移動の保存則リークは実バグ→w_rand>0 に gate して consumed 計上で厳密化（②で実証）。
     いずれもテスト非弱化・既定バイト維持。探索デモ露出は後続 render-tree タスク（TreeSim に w_rand 露出）。
 ```
+
+```
+- iter: 24
+  task: render-tree-002
+  hypothesis: TreeSim に w_rand の実行時 setter を足し demo-tree にスライダーを置けば、探索（砂糖なし
+              彷徨い）と誘引支配をデモで見て調整できる（木モデル力学・TreeParams 既定は非変更）。
+  diff_summary: |
+    render-wasm/src/lib.rs: TreeSim に set_w_rand / set_explore_persistence（実行中 params のみ更新・
+    既定不変）＋ native test 2件（setter が効く・非侵襲・w_rand>0 で hash が実際に発散＝params は
+    hash 非包含を確認）。docs/demo-tree/index.html: 探索強度 w_rand スライダー（id=wrand・0〜1・
+    step0.05・初期0.3）、fresh() で再適用。wasm/JS glue を demo-tree へ再生成。
+  seeds: [42]（render は駆動して読む＋setter のみ・決定性は native/既存で担保）
+  invariants: pass  # src/tree 力学・TreeParams 既定・Jones core 無変更。render-wasm 15テスト緑・全体緑。
+  metrics: |
+    ブラウザ実測(seed42): w_rand=0.3・砂糖なしで木がランダムに彷徨い伸長、w_rand=0・砂糖なしで
+    根のみ（探索オフ）、w_rand=0.3・砂糖ありで砂糖方向へ直線的に到達（誘引支配）、コンソールエラー無し。
+  goldens_updated: "docs/demo-tree 再生成（wasm/js/index.html）"
+  models: { orchestrator: opus, implement: sonnet(nenkin-implementer), verify: opus(+browser), record: opus }
+  decision: keep
+  note: |
+    露出のみ（木モデル力学・TreeParams 既定 w_rand=0.0 不変）。setter は実行中インスタンスの params。
+    §0 動詞不変（w_rand は開発用チューニング）。既存 Jones デモ docs/demo/ は無変更。core←render 一方向維持。
+```

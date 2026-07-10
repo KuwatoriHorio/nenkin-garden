@@ -469,6 +469,20 @@ impl TreeSim {
         format!("{:016x}", tree_state_hash(&self.state, &self.params))
     }
 
+    /// 実行中 TreeSim の探索強度（ランダム伸長）を実行時に変更する
+    /// （render-tree-002・開発用チューニング）。`src/tree/state.rs` の既定値（`w_rand=0.0`=探索オフ）
+    /// は変えない。木の力学（`tree_step`）自体は不変で、次 tick からこの値を読む
+    /// （決定性契約は「同一 params・同一入力→同一hash」のまま保たれる。`Sim::set_collect_rate` と同型）。
+    pub fn set_w_rand(&mut self, v: f64) {
+        self.params.w_rand = v;
+    }
+
+    /// 実行中 TreeSim の探索方向の持続性（既定 0.45）を実行時に変更する（render-tree-002・任意の微調整用）。
+    /// `src/tree/state.rs` の既定値は変えない。`set_w_rand` と同型（読むだけ＋params書換のみ）。
+    pub fn set_explore_persistence(&mut self, v: f64) {
+        self.params.explore_persistence = v;
+    }
+
     /// 現在 State を RGBA バッファへ地形（陸/海）のみ描画する（trail 場は無い）。
     /// State は読むだけ・非侵襲。
     pub fn render(&mut self) {
@@ -750,6 +764,43 @@ mod tests {
         assert!(n_nodes >= 1, "tree should have at least the root node");
         // 連結木・根1つ: edges.len() == 2*(nodes数-1)
         assert_eq!(a.tree_edges().len(), 2 * (n_nodes - 1));
+    }
+
+    #[test]
+    fn set_w_rand_updates_params_and_is_non_invasive() {
+        let mut a = TreeSim::new_tree(42);
+        // 既定は探索オフ（src/tree/state.rs の既定値・変更していないことの確認）。
+        assert_eq!(a.params.w_rand, 0.0);
+        let h = a.tree_state_hash_hex();
+        a.set_w_rand(0.3);
+        assert_eq!(a.params.w_rand, 0.3);
+        // setter 呼び出し自体は state を書き換えない（読むだけ・非侵襲）。
+        assert_eq!(a.tree_state_hash_hex(), h);
+        // 探索オフへ戻せる。
+        a.set_w_rand(0.0);
+        assert_eq!(a.params.w_rand, 0.0);
+
+        // 挙動でも確認: 同一 seed・砂糖なしで w_rand>0 だと根から動きが生じる
+        // （w_rand==0 だと砂糖が無い限りノードは増減しない/根に留まる）。
+        let mut off = TreeSim::new_tree(7);
+        let mut on = TreeSim::new_tree(7);
+        on.set_w_rand(0.3);
+        for _ in 0..40 {
+            off.step();
+            on.step();
+        }
+        assert_ne!(off.tree_state_hash_hex(), on.tree_state_hash_hex());
+    }
+
+    #[test]
+    fn set_explore_persistence_updates_params_and_is_non_invasive() {
+        let mut a = TreeSim::new_tree(42);
+        assert_eq!(a.params.explore_persistence, 0.45);
+        let h = a.tree_state_hash_hex();
+        a.set_explore_persistence(0.8);
+        assert_eq!(a.params.explore_persistence, 0.8);
+        // setter 呼び出し自体は state を書き換えない（読むだけ・非侵襲）。
+        assert_eq!(a.tree_state_hash_hex(), h);
     }
 
     #[test]

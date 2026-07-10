@@ -376,6 +376,24 @@ export class TreeSim {
         wasm.treesim_render(this.__wbg_ptr);
     }
     /**
+     * 実行中 TreeSim の探索方向の持続性（既定 0.45）を実行時に変更する（render-tree-002・任意の微調整用）。
+     * `src/tree/state.rs` の既定値は変えない。`set_w_rand` と同型（読むだけ＋params書換のみ）。
+     * @param {number} v
+     */
+    set_explore_persistence(v) {
+        wasm.treesim_set_explore_persistence(this.__wbg_ptr, v);
+    }
+    /**
+     * 実行中 TreeSim の探索強度（ランダム伸長）を実行時に変更する
+     * （render-tree-002・開発用チューニング）。`src/tree/state.rs` の既定値（`w_rand=0.0`=探索オフ）
+     * は変えない。木の力学（`tree_step`）自体は不変で、次 tick からこの値を読む
+     * （決定性契約は「同一 params・同一入力→同一hash」のまま保たれる。`Sim::set_collect_rate` と同型）。
+     * @param {number} v
+     */
+    set_w_rand(v) {
+        wasm.treesim_set_w_rand(this.__wbg_ptr, v);
+    }
+    /**
      * 1 tick 進める。保留中の砂糖 op を tick 境界で適用してから tree_step する（決定性）。
      */
     step() {
