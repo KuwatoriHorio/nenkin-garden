@@ -17,6 +17,7 @@ export const netsim_pixels_ptr: (a: number) => number;
 export const netsim_place_sugar_at_canvas: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
 export const netsim_remove_sugar_at_canvas: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
 export const netsim_render: (a: number) => void;
+export const netsim_set_period_n: (a: number, b: number) => void;
 export const netsim_step: (a: number) => void;
 export const netsim_sugar_positions: (a: number) => [number, number];
 export const netsim_tick: (a: number) => number;

@@ -60,6 +60,13 @@ export class NetSim {
      */
     render(): void;
     /**
+     * 実行中 NetSim の consolidation 周期 `period_n` を実行時に変更する（render-net-002・観察用コントロール）。
+     * `src/netphys/state.rs` の既定値（12）・`netphys_step` の力学は変えない（読み替えのみ）。
+     * `v` は 1〜200 にクランプ（0 は consolidation が毎 tick 発火/ゼロ除算になりうるため下限を設ける）。
+     * `set_collect_rate`/`set_w_rand` と同型（読むだけ＋params書換のみ・次 tick から反映）。
+     */
+    set_period_n(v: number): void;
+    /**
      * 1 tick 進める。保留中の砂糖 op を tick 境界で適用してから netphys_step する（決定性）。
      */
     step(): void;
@@ -265,6 +272,7 @@ export interface InitOutput {
     readonly netsim_place_sugar_at_canvas: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
     readonly netsim_remove_sugar_at_canvas: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
     readonly netsim_render: (a: number) => void;
+    readonly netsim_set_period_n: (a: number, b: number) => void;
     readonly netsim_step: (a: number) => void;
     readonly netsim_sugar_positions: (a: number) => [number, number];
     readonly netsim_tick: (a: number) => number;

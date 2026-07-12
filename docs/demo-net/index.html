@@ -52,6 +52,7 @@
   <div class="bar">
     <button id="play" class="primary">⏸ 停止</button>
     <label class="stat">速度 <input id="speed" type="range" min="1" max="120" value="20"> <span id="spd">20</span>/s</label>
+    <label class="stat">周期(刈込) <input id="period" type="range" min="1" max="120" value="12"> <span id="prd">12</span> tick</label>
     <button id="reset">↺ リセット</button>
     <label class="stat">seed <input id="seed" type="number" value="42" style="width:5em"></label>
   </div>
@@ -81,12 +82,19 @@ const SCALE = 6;                                     // canvas 内部解像度 =
 const STRENGTH = 150.0;                               // 砂糖の初期量（固定・§0の動詞は「置く/取る」のみ）
 const REMOVE_RADIUS = 3.0;
 
+const DEFAULT_PERIOD_N = 12; // src/netphys/state.rs の NetParams::period_n 既定値と一致
+
 function fresh(seed){
   sim = NetSim.new_net(seed >>> 0);
   W = sim.width(); H = sim.height();
   off.width = W; off.height = H;
   octx = off.getContext('2d');
   cv.width = W * SCALE; cv.height = H * SCALE;
+  // reset/seed 再生成時は周期(刈込)スライダーも既定値へ戻す。
+  const periodEl = document.getElementById('period');
+  periodEl.value = DEFAULT_PERIOD_N;
+  document.getElementById('prd').textContent = DEFAULT_PERIOD_N;
+  sim.set_period_n(DEFAULT_PERIOD_N);
 }
 
 // 地形（陸/海）背景を描く。網モデルには trail 場が無いので地形色のみ（NetSim.render は非侵襲）。
@@ -207,6 +215,11 @@ document.getElementById('play').addEventListener('click', e=>{
 });
 document.getElementById('speed').addEventListener('input', e=>{
   speed = +e.target.value; document.getElementById('spd').textContent = speed;
+});
+document.getElementById('period').addEventListener('input', e=>{
+  const v = +e.target.value;
+  document.getElementById('prd').textContent = v;
+  sim.set_period_n(v); // consolidation（刈込）周期。再生速度とは別物・次tickから反映（決定的）。
 });
 document.getElementById('reset').addEventListener('click', ()=>{
   fresh(+document.getElementById('seed').value || 0);

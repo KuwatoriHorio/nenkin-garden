@@ -153,6 +153,16 @@ export class NetSim {
         wasm.netsim_render(this.__wbg_ptr);
     }
     /**
+     * 実行中 NetSim の consolidation 周期 `period_n` を実行時に変更する（render-net-002・観察用コントロール）。
+     * `src/netphys/state.rs` の既定値（12）・`netphys_step` の力学は変えない（読み替えのみ）。
+     * `v` は 1〜200 にクランプ（0 は consolidation が毎 tick 発火/ゼロ除算になりうるため下限を設ける）。
+     * `set_collect_rate`/`set_w_rand` と同型（読むだけ＋params書換のみ・次 tick から反映）。
+     * @param {number} v
+     */
+    set_period_n(v) {
+        wasm.netsim_set_period_n(this.__wbg_ptr, v);
+    }
+    /**
      * 1 tick 進める。保留中の砂糖 op を tick 境界で適用してから netphys_step する（決定性）。
      */
     step() {

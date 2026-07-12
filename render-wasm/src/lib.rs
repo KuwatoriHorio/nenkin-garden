@@ -642,6 +642,15 @@ impl NetSim {
         format!("{:016x}", netphys_state_hash(&self.state, &self.params))
     }
 
+    /// 実行中 NetSim の consolidation 周期 `period_n` を実行時に変更する（render-net-002・観察用コントロール）。
+    /// `src/netphys/state.rs` の既定値（12）・`netphys_step` の力学は変えない（読み替えのみ）。
+    /// `v` は 1〜200 にクランプ（0 は consolidation が毎 tick 発火/ゼロ除算になりうるため下限を設ける）。
+    /// `set_collect_rate`/`set_w_rand` と同型（読むだけ＋params書換のみ・次 tick から反映）。
+    pub fn set_period_n(&mut self, v: f64) {
+        let clamped = v.round().clamp(1.0, 200.0) as u64;
+        self.params.period_n = clamped;
+    }
+
     /// 現在 State を RGBA バッファへ地形（陸/海）のみ描画する（trail 場は無い）。
     /// State は読むだけ・非侵襲（`TreeSim::render` と同型）。
     pub fn render(&mut self) {
@@ -1048,5 +1057,36 @@ mod tests {
         assert_eq!(a.net_edge_widths().len() * 2, a.net_edges().len());
         // ノードもある程度育っていること（探索が進んでいるかのスモークチェック）
         assert!(a.net_nodes().len() / 2 >= 1);
+    }
+
+    #[test]
+    fn set_period_n_updates_params_and_is_non_invasive_and_deterministic() {
+        let mut a = NetSim::new_net(42);
+        // 既定は 12（src/netphys/state.rs の既定値・変更していないことの確認）。
+        assert_eq!(a.params.period_n, 12);
+        let h = a.net_state_hash_hex();
+        a.set_period_n(30.0);
+        assert_eq!(a.params.period_n, 30);
+        // setter 呼び出し自体は state を書き換えない（読むだけ・非侵襲）。
+        assert_eq!(a.net_state_hash_hex(), h);
+
+        // クランプ: 下限1（0 以下は 1 に）・上限200（それ以上は 200 に）。
+        a.set_period_n(0.0);
+        assert_eq!(a.params.period_n, 1);
+        a.set_period_n(-5.0);
+        assert_eq!(a.params.period_n, 1);
+        a.set_period_n(9999.0);
+        assert_eq!(a.params.period_n, 200);
+
+        // 非侵襲・決定性: 同一 seed・同一操作列・同一 period_n → 同一 net_state_hash。
+        let mut x = NetSim::new_net(7);
+        let mut y = NetSim::new_net(7);
+        x.set_period_n(18.0);
+        y.set_period_n(18.0);
+        for _ in 0..60 {
+            x.step();
+            y.step();
+        }
+        assert_eq!(x.net_state_hash_hex(), y.net_state_hash_hex());
     }
 }

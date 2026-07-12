@@ -707,3 +707,29 @@
     →線的接近。「線が伸びる」主因(誘引なし手探り)は解消。誘引下も扇状にしたい場合は 002/003 との綱引きを詰める
     別調整タスク(netphys-005)に。demo-net は本 iter で wasm 再生成し反映。
 ```
+
+```
+- iter: 30
+  task: render-net-002
+  hypothesis: netphys の consolidation 周期 period_n(既定12) をライブ調整できると、周期短=こまめに背骨集約/
+              長=広く網を張ってから刈る、の違いを観察できる。露出のみで力学は不変。
+  diff_summary: |
+    render-wasm/src/lib.rs: NetSim::set_period_n(v:f64) 追加（v.round().clamp(1,200) as u64 を params.period_n へ
+    書くだけ=set_collect_rate/set_w_rand と同型・非侵襲）。native test 1件追加（既定12・更新・呼出でhash不変・
+    両端クランプ0/-5→1,9999→200・同一seed/period_n/操作列で hash 一致）。docs/demo-net/index.html: 「周期(刈込)」
+    レンジ(min1/max120/初期12)+現在値表示を speed 隣に追加、input で sim.set_period_n、fresh()で既定12へ復帰・
+    ラベルで再生速度と別と明示。docs/demo-net の render_wasm.js/.d.ts/wasm 再生成(API追加)。
+  seeds: n/a（露出・決定性は既存 net_state_hash 契約で担保）
+  invariants: pass  # netphys 力学・NetParams 既定(period_n=12)不変。Jones/tree/analysis/netphys 全緑。render-wasm 18緑(新1)。
+  metrics: |
+    render-wasm native 18 passed(新 set_period_n テスト含む)。全スイート緑・失敗0。ブラウザ実測: スライダー
+    (min1/max120/初期12)存在・input で label 更新、出荷 wasm で period=6→49ノード/103辺・period=48→118ノード/230辺
+    (周期で網の育ち方が変わる)・hash 相違・set_period_n(0) 例外なし(1へクランプ)・コンソールエラー無し。
+  goldens_updated: none  # 露出のみ。netphys 力学・既定・既存受け入れ不変。人間所有未編集。
+  models: { orchestrator: opus, implement: sonnet(nenkin-implementer), verify: opus(独立精読+再実行+ブラウザ実測), record: opus }
+  decision: keep
+  note: |
+    render-tree-002(set_w_rand)と同型の純粋な設定露出。period_n は「時間速度の変更」に準じる観察用コントロールで
+    §0 の動詞不変。再生速度(speed=実時間あたりtick数)とは別=consolidation 間隔である旨をラベルで明示。既存
+    demo/demo-tree・決定性契約は無変更。
+```
