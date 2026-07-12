@@ -24,6 +24,30 @@ fn sample_land_e(world: &World, x: f64, y: f64) -> Option<f64> {
     Some(world.e[idx] as f64)
 }
 
+/// 局所標高勾配（中心差分・境界は片側差分・海/範囲外は現在地の標高で代用）。
+/// netphys-003: Phase1 探索の方向バイアスに使う（`-w_elev*grad` を候補方向へ加算＝低標高側を優先）。
+/// 決定的（world.e の読み取りのみ・乱数不使用）。
+fn elevation_gradient(world: &World, x: f64, y: f64, step: f64) -> (f64, f64) {
+    let e0 = sample_land_e(world, x, y);
+    let ex_p = sample_land_e(world, x + step, y);
+    let ex_m = sample_land_e(world, x - step, y);
+    let ey_p = sample_land_e(world, x, y + step);
+    let ey_m = sample_land_e(world, x, y - step);
+    let gx = match (ex_p, ex_m) {
+        (Some(a), Some(b)) => (a - b) / (2.0 * step),
+        (Some(a), None) => e0.map(|e0v| (a - e0v) / step).unwrap_or(0.0),
+        (None, Some(b)) => e0.map(|e0v| (e0v - b) / step).unwrap_or(0.0),
+        (None, None) => 0.0,
+    };
+    let gy = match (ey_p, ey_m) {
+        (Some(a), Some(b)) => (a - b) / (2.0 * step),
+        (Some(a), None) => e0.map(|e0v| (a - e0v) / step).unwrap_or(0.0),
+        (None, Some(b)) => e0.map(|e0v| (e0v - b) / step).unwrap_or(0.0),
+        (None, None) => 0.0,
+    };
+    (gx, gy)
+}
+
 /// フロントノード ti から見た誘引方向（単位ベクトル・重み付き合成、砂糖 id 昇順で走査＝決定的）。
 fn attractor_dir(state: &NetState, ti: usize, p: &NetParams) -> Option<(f64, f64, f64)> {
     let (tx, ty) = (state.nodes[ti].x, state.nodes[ti].y);
@@ -87,10 +111,15 @@ fn phase1_search_and_anastomosis(state: &mut NetState, world: &World, p: &NetPar
         let raw_ang = state.rng.next_f64() * std::f64::consts::TAU;
         let (rdx, rdy) = (raw_ang.cos(), raw_ang.sin());
 
+        // netphys-003: 局所標高勾配の逆方向（低標高側）へのソフトバイアス。w_elev=0 なら
+        // (gex,gey) を掛けても加算量は厳密に0となり、既存の方向決定と完全に一致する。
+        let (gex, gey) = elevation_gradient(world, fx, fy, p.search_step);
+        let (bias_x, bias_y) = (-p.w_elev * gex, -p.w_elev * gey);
+
         let dir = match attract {
             Some((adx, ady, aw)) => {
-                let bx = p.w_rand * rdx + aw * adx;
-                let by = p.w_rand * rdy + aw * ady;
+                let bx = p.w_rand * rdx + aw * adx + bias_x;
+                let by = p.w_rand * rdy + aw * ady + bias_y;
                 let n = (bx * bx + by * by).sqrt();
                 if n <= 1.0e-9 {
                     None
@@ -100,7 +129,14 @@ fn phase1_search_and_anastomosis(state: &mut NetState, world: &World, p: &NetPar
             }
             None => {
                 if p.w_rand > 0.0 {
-                    Some((rdx, rdy))
+                    let bx = rdx + bias_x;
+                    let by = rdy + bias_y;
+                    let n = (bx * bx + by * by).sqrt();
+                    if n <= 1.0e-9 {
+                        None
+                    } else {
+                        Some((bx / n, by / n))
+                    }
                 } else {
                     None
                 }

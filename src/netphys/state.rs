@@ -45,6 +45,11 @@ pub struct NetParams {
     pub d0: f64,
     /// 標高コスト割増係数（探索コスト・consolidation の実効長の両方に使う＝ソフト忌避）。
     pub c_elev: f64,
+    /// netphys-003: 探索方向バイアス係数（第3の忌避経路）。probe方向の合成ベクトルに
+    /// `-w_elev*∇E`（局所標高勾配の逆方向＝低標高側）を加算し、低標高方向を確率的に優先する。
+    /// 0 なら現状（方向バイアス無し）と完全一致（後方互換のフォールバック）。壁は作らない
+    /// （高標高方向の重みが下がるだけで、確率的には登れる＝ソフト）。
+    pub w_elev: f64,
     /// consolidation の Kirchhoff で使う実効長係数 L_eff = L*(1+alpha*meanE)。
     pub net_alpha: f64,
     /// Tero 強化係数（dD = tero_gain*|Q| 分を毎 consolidation 加算）。
@@ -84,6 +89,10 @@ impl Default for NetParams {
             w_rand: 1.0,
             d0: 0.35,
             c_elev: 1.5,
+            // netphys-003: 通常予算(initial_budget=1200)でもコロニーが低標高帯に偏るために
+            // 実測で調整（探索用一時テストで確認・削除済み）。0だと方向バイアス無し＝従来通り
+            // 潤沢予算では標高を無視して登る（赤）。
+            w_elev: 2.0,
             net_alpha: 1.0,
             tero_gain: 0.8,
             tero_decay: 0.5,

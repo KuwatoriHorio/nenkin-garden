@@ -648,3 +648,33 @@
     再導出して赤→緑を確認。accept3 は固定総量下の「半径成長＋予算非枯渇」で translocation を判別（cap 有界と
     合わせ純増=移動を含意）。demo-net は NetParams 既定変更を反映するには wasm 再生成が要る（後続 render-net）。
 ```
+
+```
+- iter: 28
+  task: netphys-003
+  hypothesis: netphys の標高忌避はコスト割増(c_elev)・実効抵抗(net_alpha)のみで探索の進行方向が標高を
+              見ておらず、netphys-002 で initial_budget を1200(潤沢)にしたため通常予算で山を登る。Phase1
+              探索方向に「-w_elev*∇E」の第3の忌避経路(方向バイアス)を加えれば、通常予算でも低地選好が観測できる。
+  diff_summary: |
+    src/netphys/step.rs: elevation_gradient(world,x,y,step) を追加（world.e の中心差分・境界で片側・
+    RNG不使用の純関数）。phase1_search_and_anastomosis の方向ブレンドに bias=(-w_elev*gx,-w_elev*gy) を
+    加算注入（attract有/無=w_rand>0 の両分岐）。w_elev=0 なら加算量が厳密に0で既存挙動と完全一致。
+    c_elev/net_alpha は不変。src/netphys/state.rs: NetParams に w_elev 追加・既定 2.0。tests/netphys_003.rs 新規3件。
+  seeds: [1,42,1337]（S9部分集合・中央値）
+  invariants: pass  # netphys_001 ①②⑤⑥・netphys_002 ③④ 新既定でも緑。Jones/tree/analysis/render 全緑。
+  metrics: |
+    主判定①: 通常予算(1200)で高標高目標へ向かう構造質量 < 低標高目標×0.95（中央値）。実測比 high/low:
+    w_elev=0→1.00(赤・登る), w_elev=1→0.872, w_elev=2(採用)→0.888(高側~68質量保持=壁化せず)。
+    §7 exemplary: accept1_baseline_w_elev_zero が w_elev=0 でマージン不成立(=赤)を固定。
+    ②ソフト性: w_elev=2 でも高標高目標近傍(半径5)にノード到達=壁でない。探索用 w_elev 調整テストは削除。
+    独立再実行で全スイート緑(netphys_001:4/002:2/003:3、core/tree/analysis/render 全緑)。
+  goldens_updated: none  # netphys 内 NetParams 既定のみ。既存ゴールデン・受け入れ不変。人間所有ファイル未編集。
+  models: { orchestrator: opus, implement: sonnet(nenkin-implementer), verify: opus(独立精読+再実行), record: opus }
+  decision: keep
+  note: |
+    「seed42で山を登る」観察の切り分け=忌避が方向でなくコストのみ・潤沢予算で不活性、を方向バイアスで解消。
+    実装者が主判定を density(空間密度)でなく netphys_001⑤流の高/低目標への構造質量比(予算1200)で締めた点を
+    開示: 砂糖なし対称拡散だと random walk が home 近傍に留まり w_elev=0 でも低寄りで識別力が無いため。タスクは
+    density を例示(または)としており、採用指標の方が「予算1200で登る」欠陥を実再現・解消するので意図に忠実。
+    扇状拡散(線→面)は独立の別軸として netphys-004 に分離済み(未着手)。demo-net は本 iter で wasm 再生成し反映。
+```
