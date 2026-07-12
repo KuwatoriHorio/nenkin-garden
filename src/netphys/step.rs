@@ -91,8 +91,33 @@ fn edge_exists(edges: &[NEdge], a: usize, b: usize) -> bool {
     edges.iter().any(|e| e.a == lo && e.b == hi)
 }
 
+/// ベクトル (dx,dy) を角度 `ang`（ラジアン）だけ回転する。決定的（乱数不使用）。
+#[inline]
+fn rotate(dx: f64, dy: f64, ang: f64) -> (f64, f64) {
+    let (s, c) = ang.sin_cos();
+    (dx * c - dy * s, dx * s + dy * c)
+}
+
+/// netphys-004: 扇状拡散の probe 方向オフセット（中心方向からの角度、ラジアン）。
+/// `fan_count<=1` なら中心方向のみ `[0.0]`（現状の単一方向伸長に完全縮退＝後方互換）。
+/// `fan_count>=2` なら `[-fan_spread, +fan_spread]` を等間隔に `fan_count` 本張る。
+/// 乱数を使わない決定的な formula（引き順・本数は fan_count のみに依存）。
+fn fan_offsets(p: &NetParams) -> Vec<f64> {
+    if p.fan_count <= 1 {
+        vec![0.0]
+    } else {
+        let n = p.fan_count;
+        (0..n)
+            .map(|i| -p.fan_spread + 2.0 * p.fan_spread * (i as f64) / ((n - 1) as f64))
+            .collect()
+    }
+}
+
 /// Phase1（探索・毎tick）+ Phase2（anastomosis・探索中判定）。
-/// 前線ノードを id 昇順で処理し、各ノードにつき state.rng を最大1回だけ引く。
+/// 前線ノードを id 昇順で処理し、各ノードにつき state.rng を最大1回だけ引いて中心（合成）方向を
+/// 決める。netphys-004: 中心方向を軸に `fan_count` 本の probe を扇状（`±fan_spread`）に張り、
+/// 生存 probe ごとに独立して anastomosis 判定/新規ノード生成を行う（枝分かれ・面的拡散）。
+/// probe の追加本数分の乱数追加消費は無い（オフセットは fan_count のみに依存する決定的な式）。
 fn phase1_search_and_anastomosis(state: &mut NetState, world: &World, p: &NetParams) {
     let mut order = state.frontier.clone();
     order.sort_unstable();
@@ -151,70 +176,88 @@ fn phase1_search_and_anastomosis(state: &mut NetState, world: &World, p: &NetPar
             }
         };
 
-        if state.nodes.len() >= p.node_cap || state.edges.len() >= p.edge_cap {
-            new_frontier.push(ti); // 有界性: cap 到達で成長停止（前線は留まる）
-            continue;
-        }
-
-        let probe_x = fx + dx * p.search_step;
-        let probe_y = fy + dy * p.search_step;
-        let e_target = match sample_land_e(world, probe_x, probe_y) {
-            Some(e) => e,
-            None => {
-                new_frontier.push(ti); // 海/範囲外への伸長は棄却（境界不変条件）
-                continue;
+        // netphys-004: 扇状拡散は「誘引が無い純粋な探索」でのみ効かせる（誘引がある前線は
+        // 従来通り単一方向へ経済的に伸びる＝netphys-002③④の前進波/効率・netphys-003の低地選好は
+        // 誘引下の挙動で検証されており完全後方互換を保つ）。誘引に導かれず周囲を手探りする前線こそ
+        // 「線が伸びる」問題の主因であり、扇状化はここに適用してこそ「面的に開く」目的に合致する。
+        // 中心方向 (dx,dy) を軸に fan_count 本の probe を扇状(±fan_spread)に張る。
+        // fan_count<=1 または誘引ありのときは offsets=[0.0] のみ＝旧来の単一方向伸長に完全縮退する。
+        // any_success: 少なくとも1本の probe が anastomosis または新規ノード生成に成功したか。
+        // 全 probe が棄却/予算不足/cap到達だった場合のみ ti を前線に留める（旧来と同じ意味論の拡張）。
+        // 分岐した各 probe のコンダクタンス(=質量会計の元)は d0/fan_count とし、1ノードあたりの
+        // 総消費量が fan_count に依らずおおむね一定になるようにする（原形質が扇状に分配される、
+        // という物理描像とも整合。fan_count=1 や誘引ありでは d0 のまま完全後方互換）。
+        let fanning_active = attract.is_none() && p.fan_count > 1;
+        let d_probe = if fanning_active { p.d0 / (p.fan_count as f64) } else { p.d0 };
+        let mut any_success = false;
+        let offsets = if fanning_active { fan_offsets(p) } else { vec![0.0] };
+        for offset in offsets {
+            if state.nodes.len() >= p.node_cap || state.edges.len() >= p.edge_cap {
+                break; // 有界性: cap 到達でこのノードの残り probe を打ち切る
             }
-        };
 
-        // anastomosis: probe 近傍(fusion_dist以内)の既存ノード(ti自身・既に隣接済み=直近の親含む、を除く)
-        // があれば辺で接続してループを閉じる。直近の親を除外しないと、ti が生成された時点で
-        // 親との距離は search_step しかないため、search_step*sqrt(2) など緩い角度の探索方向でも
-        // 常に親が最近傍にヒットして自己融合（＝実質何もせず打ち止め）してしまい網が育たない。
-        let fd2 = p.fusion_dist * p.fusion_dist;
-        let mut nearest: Option<(usize, f64)> = None;
-        for (nid, nd) in state.nodes.iter().enumerate() {
-            if nid == ti || edge_exists(&state.edges, ti, nid) {
-                continue;
-            }
-            let d2 = dist2(probe_x, probe_y, nd.x, nd.y);
-            if d2 <= fd2 {
-                if nearest.map(|(_, bd)| d2 < bd).unwrap_or(true) {
-                    nearest = Some((nid, d2));
+            let (pdx, pdy) = rotate(dx, dy, offset);
+            let probe_x = fx + pdx * p.search_step;
+            let probe_y = fy + pdy * p.search_step;
+            let e_target = match sample_land_e(world, probe_x, probe_y) {
+                Some(e) => e,
+                None => continue, // 海/範囲外への伸長は棄却（境界不変条件・この probe のみ）
+            };
+
+            // anastomosis: probe 近傍(fusion_dist以内)の既存ノード(ti自身・既に隣接済みを除く)が
+            // あれば辺で接続してループを閉じる（直近の親を除外しないと自己融合で打ち止めになる、
+            // netphys-001 の既存コメント参照）。同一 ti からの先行 probe が生成した新規ノードも
+            // state.nodes に既に反映されているため、後続 probe から見た候補に自然に含まれる。
+            let fd2 = p.fusion_dist * p.fusion_dist;
+            let mut nearest: Option<(usize, f64)> = None;
+            for (nid, nd) in state.nodes.iter().enumerate() {
+                if nid == ti || edge_exists(&state.edges, ti, nid) {
+                    continue;
+                }
+                let d2 = dist2(probe_x, probe_y, nd.x, nd.y);
+                if d2 <= fd2 {
+                    if nearest.map(|(_, bd)| d2 < bd).unwrap_or(true) {
+                        nearest = Some((nid, d2));
+                    }
                 }
             }
-        }
 
-        if let Some((nid, d2)) = nearest {
-            let actual_len = d2.sqrt().max(1.0e-6);
-            let structural = p.d0 * actual_len;
+            if let Some((nid, d2)) = nearest {
+                let actual_len = d2.sqrt().max(1.0e-6);
+                let structural = d_probe * actual_len;
+                let tax = structural * p.c_elev * e_target;
+                let total_cost = structural + tax;
+                if state.free_budget < total_cost {
+                    continue; // この probe のみ予算不足で棄却（他 probe は独立に試す）
+                }
+                state.free_budget -= total_cost;
+                state.consumed_total += tax;
+                let (a, b) = if ti <= nid { (ti, nid) } else { (nid, ti) };
+                state.edges.push(NEdge { a, b, d: d_probe, l: actual_len });
+                any_success = true;
+                // このアームは既存網に融合したため打ち止め（次前線には含めない）。
+                continue;
+            }
+
+            // 新規ノード生成（枝分かれ: probe ごとに新しい前線ノードを作る）。
+            let structural = d_probe * p.search_step;
             let tax = structural * p.c_elev * e_target;
             let total_cost = structural + tax;
             if state.free_budget < total_cost {
-                new_frontier.push(ti);
-                continue;
+                continue; // この probe のみ予算不足で棄却
             }
             state.free_budget -= total_cost;
             state.consumed_total += tax;
-            let (a, b) = if ti <= nid { (ti, nid) } else { (nid, ti) };
-            state.edges.push(NEdge { a, b, d: p.d0, l: actual_len });
-            // このアームは既存網に融合したため打ち止め（次前線には含めない）。
-            continue;
+            let new_id = state.nodes.len();
+            state.nodes.push(NNode { x: probe_x, y: probe_y });
+            state.edges.push(NEdge { a: ti, b: new_id, d: d_probe, l: p.search_step });
+            new_frontier.push(new_id);
+            any_success = true;
         }
 
-        // 新規ノード生成（前線を先端へ進める）。
-        let structural = p.d0 * p.search_step;
-        let tax = structural * p.c_elev * e_target;
-        let total_cost = structural + tax;
-        if state.free_budget < total_cost {
-            new_frontier.push(ti);
-            continue;
+        if !any_success {
+            new_frontier.push(ti); // 全 probe が不成立: 前線として留まる（次tickに再試行）
         }
-        state.free_budget -= total_cost;
-        state.consumed_total += tax;
-        let new_id = state.nodes.len();
-        state.nodes.push(NNode { x: probe_x, y: probe_y });
-        state.edges.push(NEdge { a: ti, b: new_id, d: p.d0, l: p.search_step });
-        new_frontier.push(new_id);
     }
 
     new_frontier.sort_unstable();

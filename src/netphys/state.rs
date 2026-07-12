@@ -76,6 +76,12 @@ pub struct NetParams {
     pub q_pos: f64,
     /// state_hash の体積/D/L量子化幅。
     pub q_vol: f64,
+    /// netphys-004: Phase1 探索の扇状拡散。1前線ノードあたりに張る probe 本数。
+    /// 1 なら中心方向のみ＝現状の単一方向伸長に完全縮退する（後方互換のフォールバック）。
+    pub fan_count: usize,
+    /// netphys-004: 扇の半角（ラジアン）。中心（誘引・乱数・標高バイアスの合成方向）を軸に
+    /// `[-fan_spread, +fan_spread]` へ `fan_count` 本を等間隔に張る（`fan_count<=1` なら未使用）。
+    pub fan_spread: f64,
 }
 
 impl Default for NetParams {
@@ -106,10 +112,15 @@ impl Default for NetParams {
             // 削除済み)。1200 で複数シード中央値で有意な持続的外向き成長を確認（netphys_002）。
             initial_budget: 1200.0,
             e_lo: 0.3,
-            node_cap: 220,
-            edge_cap: 520,
+            node_cap: 400,
+            edge_cap: 1000,
             q_pos: 1.0e-4,
             q_vol: 1.0e-4,
+            // netphys-004: 探索用一時テストで実測（面的指標: 角度カバレッジ/占有セル数/凸包面積が
+            // fan_count=1（線的）比で有意に増え、かつ netphys-001/002/003 の既存受け入れ・保存則・
+            // 有界性を壊さない値として採用・削除済み）。
+            fan_count: 2,
+            fan_spread: 0.35,
         }
     }
 }

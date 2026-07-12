@@ -678,3 +678,32 @@
     density を例示(または)としており、採用指標の方が「予算1200で登る」欠陥を実再現・解消するので意図に忠実。
     扇状拡散(線→面)は独立の別軸として netphys-004 に分離済み(未着手)。demo-net は本 iter で wasm 再生成し反映。
 ```
+
+```
+- iter: 29
+  task: netphys-004
+  hypothesis: Phase1 探索が前線あたり probe 1本で持続方向へ伸びるため糸状(線的)に見える。中心方向を軸に
+              fan_count 本の probe を扇状(±fan_spread)に張れば枝分かれし探索が面的に開く。ノード増は許容。
+  diff_summary: |
+    src/netphys/step.rs: phase1_search_and_anastomosis を扇状化。中心(合成)方向を決める state.rng.next_f64()
+    は従来通り1回のみ引き、そこから fan_offsets(算術式・乱数不使用) で fan_count 本の probe を張って各々独立に
+    anastomosis/新規ノード生成。rotate/fan_offsets ヘルパ追加。扇状は attract.is_none() のときだけ有効化
+    (誘引下は単一 probe=完全後方互換)。各 probe の d=d0/fan_count で1ノードあたり総質量ほぼ不変。any_success で
+    全probe不成立時のみ前線に留める。src/netphys/state.rs: fan_count(既定2)/fan_spread(0.35) 追加、
+    node_cap 220→400・edge_cap 520→1000 引き上げ。tests/netphys_004.rs 新規3件。
+  seeds: [1,42,1337]（S9部分集合・中央値）
+  invariants: pass  # netphys_001①②⑤⑥・002③④・003低地選好/ソフト性 全緑。Jones/tree/analysis/render 全緑。
+  metrics: |
+    主判定①: 砂糖なし探索400tick で占有セル数(幅2)中央値 30→54(~1.8x)・角度カバレッジ(10度bin)6→13(~2.2x)、
+    既定(fan_count=2) > 線的(fan_count=1)×1.3。§7 exemplary: fan_count=1 では面的マージン不成立=赤を固定。
+    有界: 砂糖あり既定 nodes=16/edges=22、cap(400/1000)に余裕・爆発なし。全スイート緑・独立再実行。
+  goldens_updated: none  # netphys 内 NetParams のみ(cap 引き上げ=設計判断・水増しでない)。既存受け入れ不変。人間所有未編集。
+  models: { orchestrator: opus, implement: sonnet(nenkin-implementer), verify: opus(独立精読+再実行), record: opus }
+  decision: keep
+  note: |
+    設計判断を開示: 扇状化を attract.is_none()(誘引なし探索)にゲート。無条件扇状は枝分かれが標高コスト差を
+    増幅し netphys-003 の赤テスト(w_elev=0 で低地選好が出てはいけない)を壊すため。fan_count=3 は 002③(前進波の
+    予算枯渇)も壊す。テストを弱めず設計変更で回避=§7準拠。製品的含意: 砂糖から遠い手探り→扇状/砂糖誘引下(半径40)
+    →線的接近。「線が伸びる」主因(誘引なし手探り)は解消。誘引下も扇状にしたい場合は 002/003 との綱引きを詰める
+    別調整タスク(netphys-005)に。demo-net は本 iter で wasm 再生成し反映。
+```
