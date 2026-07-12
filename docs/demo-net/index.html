@@ -90,11 +90,12 @@ function fresh(seed){
   off.width = W; off.height = H;
   octx = off.getContext('2d');
   cv.width = W * SCALE; cv.height = H * SCALE;
-  // reset/seed 再生成時は周期(刈込)スライダーも既定値へ戻す。
+  // reset/seed 再生成時も周期(刈込)スライダーの値は保持し、現在値を新しい sim に適用する
+  // （ユーザーが選んだ周期を維持。スライダー未生成の初回のみ既定値 DEFAULT_PERIOD_N を使う）。
   const periodEl = document.getElementById('period');
-  periodEl.value = DEFAULT_PERIOD_N;
-  document.getElementById('prd').textContent = DEFAULT_PERIOD_N;
-  sim.set_period_n(DEFAULT_PERIOD_N);
+  const period = periodEl ? (parseInt(periodEl.value, 10) || DEFAULT_PERIOD_N) : DEFAULT_PERIOD_N;
+  if (periodEl) document.getElementById('prd').textContent = period;
+  sim.set_period_n(period);
 }
 
 // 地形（陸/海）背景を描く。網モデルには trail 場が無いので地形色のみ（NetSim.render は非侵襲）。
