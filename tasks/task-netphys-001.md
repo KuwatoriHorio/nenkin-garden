@@ -4,7 +4,13 @@
 **前提**: 設計メモ [design-memo-netphys-000.md](design-memo-netphys-000.md)。
 `analysis`（`graph.rs`・`flow.rs` の Kirchhoff・MST/指標）完了。
 
-> **状態: 🔵 未着手（§8.1 で人間確認待ち）**
+> **状態: ✅ 完了（Stage 1）**（2026-07-11, iter:25）— 独立モジュール `src/netphys/`（state/step/
+> kirchhoff/hash/mod）＋ `src/bin/run_netphys.rs`。一般グラフで扇状探索→衝突で網化(anastomosis)→
+> 周期 consolidation（最外周端子で Kirchhoff＋保存的 Tero 刈り込み）。Kirchhoff は `analysis::flow::
+> solve_dense` を可視性1行(pub(crate))で読み取り再利用（挙動不変）。新規 `tests/netphys_001.rs` 4件
+> （①網化=ループ ②2餌を flow_connected ⑤保存則/境界/決定性/標高忌避 ⑥cap内）緑・S9部分集合中央値。
+> 実装中に anastomosis 自己マージ／Tero 非保存質量の実バグを修正。既存 Jones/tree/analysis 全緑・無変更。
+> 実装 nenkin-implementer(sonnet)、精読＋独立再実行・keep はオーケストレーター(opus)。③前進波・④効率は netphys-002。
 
 **ユーザー確定**: ハイブリッド（探索前線＋網）／ループ表現必須／限界トリガ＝**周期式**／
 新成長点＝**最外周**／保存量の担体＝**A案（質量は辺 `D·L` に載る＝Tero 純）**。

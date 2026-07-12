@@ -19,7 +19,9 @@ pub struct FlowResult {
 }
 
 /// 密行列ガウス消去（部分ピボット, 決定的）。特異なら None。
-fn solve_dense(mut a: Vec<Vec<f64>>, mut b: Vec<f64>) -> Option<Vec<f64>> {
+/// netphys-001: crate 内の他モデル（`crate::netphys`）から線形ソルバ部分のみ読み取り再利用する
+/// ための可視性調整（`pub(crate)` へ）。ロジック・挙動は無変更（analysis の既存テストに影響なし）。
+pub(crate) fn solve_dense(mut a: Vec<Vec<f64>>, mut b: Vec<f64>) -> Option<Vec<f64>> {
     let n = b.len();
     for col in 0..n {
         // 部分ピボット（最大絶対値, 同値は先の行）

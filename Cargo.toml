@@ -43,5 +43,9 @@ path = "src/bin/calibrate.rs"
 name = "run_tree"
 path = "src/bin/run_tree.rs"
 
+[[bin]]
+name = "run_netphys"
+path = "src/bin/run_netphys.rs"
+
 [profile.release]
 opt-level = 3

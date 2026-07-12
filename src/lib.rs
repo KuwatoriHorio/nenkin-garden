@@ -12,6 +12,7 @@ pub mod graph_svg;
 pub mod hash;
 pub mod headless;
 pub mod metrics;
+pub mod netphys;
 pub mod params;
 pub mod rng;
 pub mod state;

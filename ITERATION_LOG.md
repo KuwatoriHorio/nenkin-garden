@@ -567,3 +567,32 @@
     露出のみ（木モデル力学・TreeParams 既定 w_rand=0.0 不変）。setter は実行中インスタンスの params。
     §0 動詞不変（w_rand は開発用チューニング）。既存 Jones デモ docs/demo/ は無変更。core←render 一方向維持。
 ```
+
+```
+- iter: 25
+  task: netphys-001 (Stage 1)
+  hypothesis: 一般グラフで扇状探索→衝突で網化→周期 consolidation(最外周端子で Kirchhoff+保存的
+              Tero 刈り込み)を回せば、餌を結ぶ連結網を保存則・決定性・有界のもとで作れる（担体A）。
+  diff_summary: |
+    新規独立モジュール src/netphys/{state,step,kirchhoff,hash,mod}.rs（NetState/NetParams/netphys_step/
+    netphys_state_hash/netphys_kirchhoff_solve/run_netphys_headless）。src/bin/run_netphys.rs。
+    lib.rs に pub mod netphys、Cargo.toml に bin 加算登録。analysis/flow.rs は solve_dense を
+    pub(crate) 化する可視性1行のみ（ロジック無変更）。tests/netphys_001.rs 新規4件（①②⑤⑥）。
+  seeds: [1,42,1337]（S9部分集合・中央値）
+  invariants: pass  # 新モデル独自。Jones/tree/analysis 既存全テスト不変で緑（flow.rs 可視性のみ）。
+  metrics: |
+    NetParams(実測): period_n=12 fusion_dist=3 k_frontier=6 search_step=2 w_rand=1 d0=0.35 c_elev=1.5
+    tero_gain=1.4 tero_decay=0.35 prune_eps=0.02 node_cap=220 edge_cap=520 B0=400。
+    ①中央値で1成分がループ(辺数>ノード-1) ②2餌が flow_connected・有限正コンダクタンス
+    ⑤total_mass==collected-consumed(担体A)・非負・境界=陸内・同一seed→同一hash・標高忌避(高<低*0.95)
+    ⑥800tick でも node/edge cap 内。全スイート緑・exit0（オーケストレーター独立再実行）。
+  goldens_updated: none  # 新モデルは独立。既存ゴールデン不変。analysis/flow.rs は可視性のみ（挙動不変）。
+  models: { orchestrator: opus, implement: sonnet(nenkin-implementer), verify: opus, record: opus }
+  decision: keep
+  note: |
+    §0 設計軸に関わる第3モデル（Jones/tree/netphys）をユーザー承認の下で並置。受け入れは段階化＝
+    Stage1(①②⑤⑥)のみ本タスク合否、③前進波移動・④効率改善は netphys-002。実装中の2実バグ
+    （anastomosis が自己親とマージし網が育たない／Tero が D を直接上書きし質量非保存）を修正＝
+    テスト非弱化。⑤保存則テストが担体A の会計を厳密に締める。Kirchhoff は analysis の dense ソルバを
+    可視性のみで再利用（Laplacian 組立は netphys 側=analysis の pixel-index グラフと結合せず）。
+```
