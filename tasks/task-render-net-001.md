@@ -4,7 +4,12 @@
 **前提**: [netphys-001](task-netphys-001.md)（網 Physarum・Stage 1・ヘッドレス）完了・全テスト緑。
 `render-tree-001`（`TreeSim`・`docs/demo-tree/`）完了（wasm 別モデル露出の型）。
 
-> **状態: 🔵 未着手（§8.1 で人間確認待ち）**
+> **状態: ✅ 完了**（2026-07-11, iter:26）— render-wasm に `NetSim`（netphys を駆動して読む）を追加、
+> 別ページ `docs/demo-net/` を新設（辺を線幅=コンダクタンス D の発光管で描画・ループが見える・
+> 砂糖操作・再生/速度/reset/seed）、トップに導線。render-wasm 17テスト緑（新規2）。netphys 力学・
+> Jones/tree・既存デモは無変更。検証: netphys_001 全緑＋ブラウザで NetSim 駆動→96ノード/241辺/
+> ループあり/管の太さ 0.02〜1.175/決定的hash＋drawNet 静的レビュー（視覚スクショは新プレビュー基盤が
+> rAF 非駆動で取得不可・ライブは通常ブラウザで可）。実装 nenkin-implementer(sonnet)、検証・keep はオーケストレーター(opus)。
 
 ---
 

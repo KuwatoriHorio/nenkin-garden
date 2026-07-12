@@ -596,3 +596,28 @@
     テスト非弱化。⑤保存則テストが担体A の会計を厳密に締める。Kirchhoff は analysis の dense ソルバを
     可視性のみで再利用（Laplacian 組立は netphys 側=analysis の pixel-index グラフと結合せず）。
 ```
+
+```
+- iter: 26
+  task: render-net-001
+  hypothesis: NetSim(wasm) で src/netphys を駆動し、辺を線幅=コンダクタンス D の発光管で別ページに
+              描けば、網化・ループ・Tero の背骨太りをブラウザで観察できる（netphys 力学は非変更）。
+  diff_summary: |
+    render-wasm/src/lib.rs: NetSim（NetState/NetParams/World を保持し netphys_step で駆動）＋
+    new_net/step/砂糖操作/net_nodes/net_edges/net_edge_widths(=D)/net_state_hash_hex/render/home。
+    native test 2件（決定性・edge_widths 長==edges/2）。docs/demo-net/ 新規（drawNet: 線幅を D 正規化で
+    1〜6px・加算合成の発光管・ノード発光点）。docs/index.html 導線1つ。wasm/JS glue を demo-net へ出力。
+  seeds: [42]（render は駆動して読む＋native/既存で決定性担保）
+  invariants: pass  # netphys 力学・NetParams 既定・Jones/tree 無変更。render-wasm 17テスト緑・全体緑。
+  metrics: |
+    検証: netphys_001 全緑(独立再実行)＋ブラウザで NetSim を dynamic import 駆動→400tick で
+    96ノード/241辺/hasLoop=true/edge_widths 0.02〜1.175(背骨太り)/整合/決定的hash・コンソールエラー無し。
+    drawNet 静的レビューで幅→線幅・管・ノード描画が正当。視覚スクショは新プレビュー基盤が rAF 非駆動・
+    screenshot タイムアウトのため未取得（インフラ制約・コード欠陥でない。ライブは通常ブラウザで可）。
+  goldens_updated: "docs/demo-net 新規（wasm/js/index.html）＋ docs/index.html 導線"
+  models: { orchestrator: opus, implement: sonnet(nenkin-implementer), verify: opus(+browser data/code), record: opus }
+  decision: keep
+  note: |
+    別ページ実装。NetSim は netphys_step を回すだけで力学不変（core←render 一方向）。辺の太さ D で
+    Tero 背骨が見えるのが木デモとの差。視覚確認は今回プレビュー基盤の制約でデータ+描画コード検証に代替。
+```

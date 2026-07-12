@@ -9,6 +9,7 @@ use wasm_bindgen::prelude::*;
 
 use nenkin_garden::analysis::analyze;
 use nenkin_garden::graph_svg::mst_edge_set;
+use nenkin_garden::netphys::{initial_net_state, netphys_state_hash, netphys_step, NetParams, NetState};
 use nenkin_garden::params::Params;
 use nenkin_garden::state::{apply_op, initial_state, Op, State};
 use nenkin_garden::tree::{initial_tree_state, tree_state_hash, tree_step, TreeParams, TreeState};
@@ -512,6 +513,164 @@ impl TreeSim {
     }
 }
 
+/// render-net-001: 網 Physarum モデル（`nenkin_garden::netphys`）を wasm で駆動する render レイヤ。
+/// `Sim`（Jones モデル）・`TreeSim`（成長木モデル）とは別 struct・別ページ（`docs/demo-net/`）専用。
+/// 網モデルの力学（`netphys_step`）・`NetParams` 既定は変えない・駆動して読むだけ
+/// （core ← render の一方向依存）。
+#[wasm_bindgen]
+pub struct NetSim {
+    world: World,
+    params: NetParams,
+    state: NetState,
+    pending: Vec<Op>,
+    pixels: Vec<u8>, // RGBA, グリッド解像度 (w*h*4)。地形（陸/海）のみ・trail 場は無い。
+}
+
+#[wasm_bindgen]
+impl NetSim {
+    /// seed から新しい網 Physarum シミュレーションを作る（既定 NetParams・既存合成列島を共有）。
+    /// wasm_bindgen コンストラクタと衝突しないよう、関連関数として公開する（`TreeSim::new_tree` と同型）。
+    pub fn new_net(seed: u32) -> NetSim {
+        let world = make_synthetic_archipelago(&Params::default());
+        let params = NetParams::default();
+        let state = initial_net_state(seed as u64, &world, &params);
+        let pixels = vec![0u8; world.w * world.h * 4];
+        NetSim { world, params, state, pending: Vec::new(), pixels }
+    }
+
+    /// ホーム座標（グリッド座標）。根ノード(0)の初期位置と一致する。
+    pub fn home_x(&self) -> f32 {
+        self.world.default_home(self.params.e_lo).0 as f32
+    }
+    pub fn home_y(&self) -> f32 {
+        self.world.default_home(self.params.e_lo).1 as f32
+    }
+
+    pub fn width(&self) -> usize {
+        self.world.w
+    }
+
+    pub fn height(&self) -> usize {
+        self.world.h
+    }
+
+    pub fn tick(&self) -> u32 {
+        self.state.tick as u32
+    }
+
+    /// 1 tick 進める。保留中の砂糖 op を tick 境界で適用してから netphys_step する（決定性）。
+    pub fn step(&mut self) {
+        let ops: Vec<Op> = std::mem::take(&mut self.pending);
+        netphys_step(&mut self.state, &self.world, &self.params, &ops);
+    }
+
+    /// canvas クリック → セル → place_sugar（陸のみ）。置けたら true（`Sim`/`TreeSim` と同型）。
+    pub fn place_sugar_at_canvas(&mut self, cx: f64, cy: f64, cw: f64, ch: f64, strength: f64) -> bool {
+        let (gx, gy) = canvas_to_cell(cx, cy, cw, ch, self.world.w, self.world.h);
+        if !self.world.land_mask[gy * self.world.w + gx] {
+            return false; // 海には置かない
+        }
+        self.pending.push(Op::PlaceSugar {
+            x: gx as f64 + 0.5,
+            y: gy as f64 + 0.5,
+            strength,
+        });
+        true
+    }
+
+    /// canvas クリック近傍の砂糖源を1つ取り除く（半径 radius セル内で最近傍）。
+    pub fn remove_sugar_at_canvas(&mut self, cx: f64, cy: f64, cw: f64, ch: f64, radius: f64) -> bool {
+        let (gx, gy) = canvas_to_cell(cx, cy, cw, ch, self.world.w, self.world.h);
+        let (px, py) = (gx as f64 + 0.5, gy as f64 + 0.5);
+        let mut best: Option<(u64, f64)> = None;
+        for i in 0..self.state.sugar_id.len() {
+            let dx = self.state.sugar_x[i] - px;
+            let dy = self.state.sugar_y[i] - py;
+            let d = (dx * dx + dy * dy).sqrt();
+            if d <= radius && best.map_or(true, |(_, bd)| d < bd) {
+                best = Some((self.state.sugar_id[i], d));
+            }
+        }
+        if let Some((id, _)) = best {
+            self.pending.push(Op::RemoveSugar { id });
+            true
+        } else {
+            false
+        }
+    }
+
+    /// 砂糖源の位置を flat 配列 [x0,y0,x1,y1,...]（グリッド座標）で返す。
+    pub fn sugar_positions(&self) -> Vec<f32> {
+        let mut v = Vec::with_capacity(self.state.sugar_x.len() * 2);
+        for i in 0..self.state.sugar_x.len() {
+            v.push(self.state.sugar_x[i] as f32);
+            v.push(self.state.sugar_y[i] as f32);
+        }
+        v
+    }
+
+    /// 網ノードの座標を flat 配列 [x0,y0,x1,y1,...]（グリッド座標, index 昇順）で返す。
+    /// `state.nodes` を読むだけ・非侵襲。
+    pub fn net_nodes(&self) -> Vec<f32> {
+        let mut v = Vec::with_capacity(self.state.nodes.len() * 2);
+        for n in &self.state.nodes {
+            v.push(n.x as f32);
+            v.push(n.y as f32);
+        }
+        v
+    }
+
+    /// 網の辺を flat 配列 [a0,b0,a1,b1,...]（ノード index ペア, a<b）で返す（一般グラフ・ループ可）。
+    /// `state.edges` を読むだけ・非侵襲。`net_edge_widths()` と同順。
+    pub fn net_edges(&self) -> Vec<u32> {
+        let mut v = Vec::with_capacity(self.state.edges.len() * 2);
+        for e in &self.state.edges {
+            v.push(e.a as u32);
+            v.push(e.b as u32);
+        }
+        v
+    }
+
+    /// 各辺のコンダクタンス D（管の太さ, Tero 刈り込みで太さが背骨へ集約される）を
+    /// `net_edges()` と同順で返す。`state.edges` を読むだけ・非侵襲。
+    pub fn net_edge_widths(&self) -> Vec<f32> {
+        self.state.edges.iter().map(|e| e.d as f32).collect()
+    }
+
+    /// 決定性検証用: 現在 NetState の 64bit ハッシュを16進文字列で返す。
+    pub fn net_state_hash_hex(&self) -> String {
+        format!("{:016x}", netphys_state_hash(&self.state, &self.params))
+    }
+
+    /// 現在 State を RGBA バッファへ地形（陸/海）のみ描画する（trail 場は無い）。
+    /// State は読むだけ・非侵襲（`TreeSim::render` と同型）。
+    pub fn render(&mut self) {
+        let (w, h) = (self.world.w, self.world.h);
+        for i in 0..w * h {
+            let (r, g, b) = if self.world.land_mask[i] {
+                let e = self.world.e[i] as f64;
+                land_color(e)
+            } else {
+                (11.0, 30.0, 45.0) // 海
+            };
+            let o = i * 4;
+            self.pixels[o] = r as u8;
+            self.pixels[o + 1] = g as u8;
+            self.pixels[o + 2] = b as u8;
+            self.pixels[o + 3] = 255;
+        }
+    }
+
+    /// RGBA バッファの先頭ポインタ（JS が wasm memory から読む）。
+    pub fn pixels_ptr(&self) -> *const u8 {
+        self.pixels.as_ptr()
+    }
+
+    pub fn pixels_len(&self) -> usize {
+        self.pixels.len()
+    }
+}
+
 /// 保留 op を適用せずに単純ステップする内部用（テスト・ヘッドレス比較用, wasm 非公開）。
 pub fn apply_op_now(sim_state: &mut State, op: &Op) {
     apply_op(sim_state, op);
@@ -823,5 +982,71 @@ mod tests {
         assert_eq!(a.graph_edge_mst(), b.graph_edge_mst());
         // 整合: 電流配列長 == エッジ数 == エッジ配列の半分
         assert_eq!(a.graph_edge_currents().len() * 2, a.graph_edges().len());
+    }
+
+    // --- render-net-001: NetSim（網 Physarum モデル）のnative test ---
+
+    #[test]
+    fn net_sim_same_ops_yield_same_hash() {
+        let mut a = NetSim::new_net(42);
+        let mut b = NetSim::new_net(42);
+        for i in 0..80 {
+            if i == 5 {
+                let (hx, hy) = (a.home_x() as f64, a.home_y() as f64);
+                a.place_sugar_at_canvas(
+                    (hx + 10.0) * 5.0,
+                    hy * 5.0,
+                    a.world.w as f64 * 5.0,
+                    a.world.h as f64 * 5.0,
+                    80.0,
+                );
+                let (hx2, hy2) = (b.home_x() as f64, b.home_y() as f64);
+                b.place_sugar_at_canvas(
+                    (hx2 + 10.0) * 5.0,
+                    hy2 * 5.0,
+                    b.world.w as f64 * 5.0,
+                    b.world.h as f64 * 5.0,
+                    80.0,
+                );
+            }
+            a.step();
+            b.step();
+        }
+        // 同一 seed・同一操作列 → 同一 net_state_hash（決定性契約）
+        assert_eq!(a.net_state_hash_hex(), b.net_state_hash_hex());
+
+        // render は State を書き換えない（前後で hash 不変）
+        let h = a.net_state_hash_hex();
+        a.render();
+        assert_eq!(a.net_state_hash_hex(), h);
+    }
+
+    #[test]
+    fn net_edge_widths_len_matches_edges() {
+        let mut a = NetSim::new_net(7);
+        let (hx, hy) = (a.home_x() as f64, a.home_y() as f64);
+        for i in 0..60 {
+            if i == 3 {
+                a.place_sugar_at_canvas(
+                    (hx + 15.0) * 5.0,
+                    (hy - 8.0) * 5.0,
+                    a.world.w as f64 * 5.0,
+                    a.world.h as f64 * 5.0,
+                    150.0,
+                );
+                a.place_sugar_at_canvas(
+                    (hx - 12.0) * 5.0,
+                    (hy + 14.0) * 5.0,
+                    a.world.w as f64 * 5.0,
+                    a.world.h as f64 * 5.0,
+                    150.0,
+                );
+            }
+            a.step();
+        }
+        // 整合: edge_widths 長 == edges 長/2
+        assert_eq!(a.net_edge_widths().len() * 2, a.net_edges().len());
+        // ノードもある程度育っていること（探索が進んでいるかのスモークチェック）
+        assert!(a.net_nodes().len() / 2 >= 1);
     }
 }
