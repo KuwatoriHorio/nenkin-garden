@@ -621,3 +621,30 @@
     別ページ実装。NetSim は netphys_step を回すだけで力学不変（core←render 一方向）。辺の太さ D で
     Tero 背骨が見えるのが木デモとの差。視覚確認は今回プレビュー基盤の制約でデータ+描画コード検証に代替。
 ```
+
+```
+- iter: 27
+  task: netphys-002 (Stage 2)
+  hypothesis: consolidation を多端子(ハブ基準)Kirchhoff にし後方内側ループを prune して mass を前線へ
+              translocation すれば、固定総量でも前進波として外へ移動し続け（凍結せず）、かつ端子間効率も改善する。
+  diff_summary: |
+    src/netphys/step.rs: phase3_consolidation を単一 source→sink から root(node0)ハブ基準の多端子
+    Kirchhoff（全生存端子へ solve→per-edge 電流を集約して Tero 強化/減衰）に変更＝前線枝を背骨に繋いだまま
+    内側ループだけ prune。src/netphys/state.rs: NetParams 既定調整（k_frontier6→4, tero_gain1.4→0.8,
+    tero_decay0.35→0.5, prune_eps0.02→0.05, initial_budget400→1200）。tests/netphys_002.rs 新規2件。
+  seeds: [1,42,1337]（S9部分集合・中央値）
+  invariants: pass  # netphys-001 ①②⑤⑥ 新既定でも4件緑。Jones/tree/analysis 全テスト不変で緑。
+  metrics: |
+    ③前進波: 砂糖なし1800tick で max半径中央値が early の1.5倍以上かつ+3超・終盤後退なし・
+    late free_budget 中央値>50（固定総量=初期1200 下では後方 prune の mass 再投資=translocation でしか
+    成立。baseline は ~100サイクルで free_budget≈0 に凍結=その場脈動→赤、Stage2 で緑 free≈620）。
+    ④consolidation 前後で端子間 total_conductance が後≥前 or 上昇トレンド。全スイート緑・exit0。
+  goldens_updated: none  # 新モデル独立。既存ゴールデン不変。NetParams 既定変更は netphys 内のみ。
+  models: { orchestrator: opus, implement: sonnet(nenkin-implementer), verify: opus, record: opus }
+  decision: keep
+  note: |
+    本プロジェクト最難所（前進波の安定移動）が §8 停止せず達成。§7 規律が模範的＝実装者が「accept3 の
+    初稿は未改変コードでも通る（偽テスト）」と自己開示し、真の失敗モード（固定総量で予算枯渇→凍結）を
+    再導出して赤→緑を確認。accept3 は固定総量下の「半径成長＋予算非枯渇」で translocation を判別（cap 有界と
+    合わせ純増=移動を含意）。demo-net は NetParams 既定変更を反映するには wasm 再生成が要る（後続 render-net）。
+```

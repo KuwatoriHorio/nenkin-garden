@@ -4,7 +4,14 @@
 **前提**: [netphys-001](task-netphys-001.md)（Stage 1・①②⑤⑥）完了・全テスト緑。設計メモ
 [design-memo-netphys-000.md](design-memo-netphys-000.md)。
 
-> **状態: 🔵 未着手（§8.1 で人間確認待ち）**
+> **状態: ✅ 完了**（2026-07-11, iter:27）— Phase3 consolidation を単一 source→sink から
+> **ハブ(root)基準の多端子 Kirchhoff** に変更（全生存端子へ solve→電流を集約して Tero 駆動＝
+> 前線枝を背骨に繋いだまま内側ループだけ prune＝後方 mass を前線へ translocation）。NetParams 調整
+> （k_frontier 6→4, tero_gain 1.4→0.8, tero_decay 0.35→0.5, prune_eps 0.02→0.05, initial_budget 400→1200）。
+> 新規 `tests/netphys_002.rs` 2件緑: ③砂糖なし1800tick で max半径持続成長＋free_budget>50（固定総量下=
+> 後方回収の translocation でしか成立＝前進波・baseline は予算0で凍結を確認し赤→緑）、④consolidation
+> 前後で端子間コンダクタンス改善。netphys-001 ①②⑤⑥＋既存全テスト緑・無変更。担体A 維持。
+> 実装 nenkin-implementer(sonnet)、精読＋独立再実行・keep はオーケストレーター(opus)。前進波のデモ反映は後続 render-net。
 
 ---
 

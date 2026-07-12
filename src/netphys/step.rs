@@ -295,17 +295,35 @@ fn phase3_consolidation(state: &mut NetState, world: &World, p: &NetParams) {
     terminals.dedup();
 
     // Kirchhoff + Tero 適応（端子2つ以上のときのみ）。
-    if terminals.len() >= 2 {
-        let source = terminals[0];
-        let sink = *terminals.last().unwrap();
-        let flow = kirchhoff_solve(&state.nodes, &state.edges, world, p.net_alpha, source, sink);
-        if flow.connected {
+    // 設計メモ Phase3/タスク④: 単一 source→sink の1経路だけを解くと、他の最外周端子
+    // (次の前線候補)へ向かう枝には電流が乗らず Tero 減衰で丸ごと刈られてしまい、
+    // 前進波が「その場脈動」に留まる（新前線を選んでもそこへの経路が失われる）原因になる。
+    // hub(=常に保護されるノード0=根) を共通の基点とし、根から各端子への電流を個別に解いて
+    // 加算した「延べ利用量」で Tero を駆動する（決定的：端子は昇順に走査・辺配列順で加算）。
+    if terminals.len() >= 1 && state.nodes.len() >= 2 {
+        let hub = 0usize;
+        let mut agg_q = vec![0.0f64; state.edges.len()];
+        let mut any_connected = false;
+        let mut solved: std::collections::HashSet<usize> = std::collections::HashSet::new();
+        for &t in &terminals {
+            if t == hub || !solved.insert(t) {
+                continue;
+            }
+            let flow = kirchhoff_solve(&state.nodes, &state.edges, world, p.net_alpha, hub, t);
+            if flow.connected {
+                any_connected = true;
+                for (i, q) in flow.edge_currents.iter().enumerate() {
+                    agg_q[i] += q;
+                }
+            }
+        }
+        if any_connected {
             // Tero 適応は質量保存的に行う: D の増分(=辺の構造質量の増分)は free_budget から
             // 差し引き、減分は free_budget へ戻す（担体A: 質量は free_budget + Σ D*L）。
             // 増分が現在の free_budget を超える場合は budget 律速でその分だけ増分を切り詰める
             // （ソフト・不変条件維持）。辺は決定的な既存順（挿入順＝seed由来で決定的）で処理。
             for (i, e) in state.edges.iter_mut().enumerate() {
-                let q = flow.edge_currents[i];
+                let q = agg_q[i];
                 let old_mass = e.d * e.l;
                 let target_d = ((1.0 - p.tero_decay) * e.d + p.tero_gain * q).max(0.0);
                 let mut new_mass = target_d * e.l;

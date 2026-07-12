@@ -78,20 +78,24 @@ impl Default for NetParams {
         NetParams {
             period_n: 12,
             fusion_dist: 3.0,
-            k_frontier: 6,
+            k_frontier: 4,
             search_step: 2.0,
             attract_radius: 40.0,
             w_rand: 1.0,
             d0: 0.35,
             c_elev: 1.5,
             net_alpha: 1.0,
-            tero_gain: 1.4,
-            tero_decay: 0.35,
-            prune_eps: 0.02,
+            tero_gain: 0.8,
+            tero_decay: 0.5,
+            prune_eps: 0.05,
             sugar_radius: 3.0,
             collect_rate: 0.5,
             sugar_tap_radius: 10.0,
-            initial_budget: 400.0,
+            // netphys-002: consolidation の後方 prune で戻した ΣD*L を前線の再拡散(translocation)へ
+            // 回す前進波移動(③)には、初期建設(anastomosis含む)を賄ってなお継続探索に回せる余剰が要る。
+            // 400 だと初期網形成でほぼ使い切り「その場脈動」に留まる(実測: 探索用一時バイナリで確認・
+            // 削除済み)。1200 で複数シード中央値で有意な持続的外向き成長を確認（netphys_002）。
+            initial_budget: 1200.0,
             e_lo: 0.3,
             node_cap: 220,
             edge_cap: 520,
