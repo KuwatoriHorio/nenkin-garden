@@ -141,36 +141,45 @@ fn accept1_baseline_w_elev_zero_fails_margin_red() {
 }
 
 // ---------- ソフト性: 高標高セルにもノードを持ちうる（完全排除でない） ----------
-
+//
+// netphys-005 改定（人間承認済み・理由）: 従来のこのテストは「高標高の砂糖に到達できる」を
+// 保証していたが、netphys-005 で誘引そのものを標高依存にして高標高(e>=attract_e_hi)の砂糖を
+// 通常予算で見捨てる（連結しない）よう変更したため、この保証は新方針と直接矛盾する。
+// 「高標高の砂糖は見捨てる」検証は tests/netphys_005.rs（①主判定）へ移設し、本テストは
+// 砂糖誘引に頼らない純粋な softness チェック（＝高標高セルへの伸長が物理的に禁止されていない
+// ことの確認）へ書き換える。砂糖なしのランダム探索(w_rand)＋既存の標高方向バイアス(w_elev)
+// だけでも、十分な tick を与えれば高標高帯(e>=attract_e_hi)にノードを持ちうる＝壁ではない
+// （壁なら attract_e_hi 以上のセルへは何tick経っても絶対に到達できないはず）。
 #[test]
 fn accept2_soft_not_wall_high_elevation_reachable() {
-    let (world, hx, hy) = world_and_home();
+    let (world, _hx, _hy) = world_and_home();
     let np = NetParams::default();
-    let (high_xy, _low_xy) = find_high_low_targets(&world, hx, hy, 14.0, 2.0);
 
+    // 高標高帯(e>=attract_e_hi)へ「一度でも」ノードが到達しえたか＝壁で完全排除されていないか
+    // を走行中の全tickにわたって確認する（最終スナップショットのみだと、砂糖が無い探索は
+    // consolidation の Tero 減衰・孤立ノード prune で末端の探索的な枝が後退することがあり、
+    // 純粋な物理的到達可否＝softness の判定には「到達しえたか」の方が忠実）。
     let mut reached_flags = Vec::new();
     for &seed in &SEEDS {
         let mut s = initial_net_state(seed, &world, &np);
-        for t in 0..720u64 {
-            let ops = if t == 0 {
-                vec![Op::PlaceSugar { x: high_xy.0, y: high_xy.1, strength: 2000.0 }]
-            } else {
-                Vec::new()
-            };
-            netphys_step(&mut s, &world, &np, &ops);
+        let mut ever_reached = false;
+        for _ in 0..3000u64 {
+            netphys_step(&mut s, &world, &np, &[]); // 砂糖なし: 誘引に頼らない純粋な探索
+            if !ever_reached {
+                ever_reached = s.nodes.iter().any(|nd| {
+                    let cix = (nd.x.floor() as usize).min(world.w - 1);
+                    let ciy = (nd.y.floor() as usize).min(world.h - 1);
+                    (world.e[ciy * world.w + cix] as f64) >= np.attract_e_hi
+                });
+            }
         }
-        // 高標高目標近傍(半径5)にノードを持てたか＝壁で完全排除されていないか。
-        let reached = s
-            .nodes
-            .iter()
-            .any(|nd| ((nd.x - high_xy.0).powi(2) + (nd.y - high_xy.1).powi(2)).sqrt() <= 5.0);
-        reached_flags.push(if reached { 1.0 } else { 0.0 });
+        reached_flags.push(if ever_reached { 1.0 } else { 0.0 });
     }
     let m = median3(reached_flags.clone());
     assert!(
         m >= 1.0,
-        "標高忌避が壁化しており、十分なサイクル・砂糖誘引があっても高標高セル付近へ到達できない \
-         (ソフト性違反の疑い): flags={:?}",
+        "標高忌避が壁化しており、砂糖誘引なしの十分なサイクルでも高標高帯(e>=attract_e_hi)へ \
+         到達できない(ソフト性違反の疑い): flags={:?}",
         reached_flags
     );
 }

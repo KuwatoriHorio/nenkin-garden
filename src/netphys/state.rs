@@ -82,6 +82,23 @@ pub struct NetParams {
     /// netphys-004: 扇の半角（ラジアン）。中心（誘引・乱数・標高バイアスの合成方向）を軸に
     /// `[-fan_spread, +fan_spread]` へ `fan_count` 本を等間隔に張る（`fan_count<=1` なら未使用）。
     pub fan_spread: f64,
+    /// netphys-005: 誘引（砂糖への引力）を標高依存で減衰させるしきい。砂糖の標高がこれ未満なら
+    /// 減衰なし（falloff=1・従来通り）。これ以上で `attract_e_falloff` により急減衰する。
+    /// 実測（探索用一時バイナリ src/bin/explore_e.rs・削除予定）:
+    ///   netphys-001 accept2 の2砂糖 e≈0.712, e≈0.012 → falloff=1側に収める必要（連結維持）。
+    ///   netphys-003 accept1/accept1_baseline の高標高ターゲット(d=14) e≈0.873 → w_elev=0でも
+    ///     margin不成立(赤)である既存契約を壊さないため、ここは falloff=1側（しきい未満）に
+    ///     収める必要がある（w_elev非依存の新規機構でこの既存テストの意味論を変えない）。
+    ///   netphys-005 の高標高砂糖ターゲット(d=18) e≈0.979 → こちらは強く減衰させる対象。
+    /// 0.873 < e_hi < 0.979 の範囲から 0.9 を採用（両立を実測で確認）。
+    pub attract_e_hi: f64,
+    /// netphys-005: `attract_e_hi` 超過分に対する誘引減衰の鋭さ（exp(-k*(e-e_hi))）。0 なら
+    /// 減衰なし（誘引は標高非依存＝現状/後方互換のフォールバック）。探索用一時バイナリ
+    /// （src/bin/explore_e.rs・削除予定）で 45/100/200/400/800 を実測: 45 では誘引重みの絶対値
+    /// (砂糖remaining/dist^2に比例)がまだ w_rand を上回る局面があり通常予算(1200)・720tick
+    /// では3シード中央値で連結してしまう(赤)。200 以上で3シード中2つが非連結に転じ中央値で
+    /// 見捨てる(緑)側へ安定（400/800でも同じ内訳＝飽和）。200を採用（過剰な値を避ける）。
+    pub attract_e_falloff: f64,
 }
 
 impl Default for NetParams {
@@ -121,6 +138,8 @@ impl Default for NetParams {
             // 有界性を壊さない値として採用・削除済み）。
             fan_count: 2,
             fan_spread: 0.35,
+            attract_e_hi: 0.9,
+            attract_e_falloff: 200.0,
         }
     }
 }

@@ -48,8 +48,22 @@ fn elevation_gradient(world: &World, x: f64, y: f64, step: f64) -> (f64, f64) {
     (gx, gy)
 }
 
+/// netphys-005: 砂糖への誘引重みの標高依存減衰。標高 `e` が `attract_e_hi` 未満なら 1.0
+/// （減衰なし・従来通り）。以上では `exp(-attract_e_falloff*(e-attract_e_hi))` で急減衰する。
+/// `attract_e_falloff<=0` なら常に1.0（後方互換のフォールバック）。壁ではない＝falloffは常に
+/// >0（e→1でも厳密0にはならない・ソフト §0）。
+fn attract_elevation_falloff(e: f64, p: &NetParams) -> f64 {
+    if p.attract_e_falloff <= 0.0 || e <= p.attract_e_hi {
+        1.0
+    } else {
+        (-(p.attract_e_falloff) * (e - p.attract_e_hi)).exp()
+    }
+}
+
 /// フロントノード ti から見た誘引方向（単位ベクトル・重み付き合成、砂糖 id 昇順で走査＝決定的）。
-fn attractor_dir(state: &NetState, ti: usize, p: &NetParams) -> Option<(f64, f64, f64)> {
+/// netphys-005: 各砂糖の標高（陸/範囲内なら world.e、海/範囲外は忌避対象外として減衰なし扱い）
+/// で誘引重みを `attract_elevation_falloff` により減衰させる（高標高の砂糖は事実上見捨てる）。
+fn attractor_dir(state: &NetState, ti: usize, world: &World, p: &NetParams) -> Option<(f64, f64, f64)> {
     let (tx, ty) = (state.nodes[ti].x, state.nodes[ti].y);
     let mut order: Vec<usize> = (0..state.sugar_id.len()).collect();
     order.sort_by_key(|&j| state.sugar_id[j]);
@@ -64,7 +78,9 @@ fn attractor_dir(state: &NetState, ti: usize, p: &NetParams) -> Option<(f64, f64
         if dist > p.attract_radius || dist < 1.0e-9 {
             continue;
         }
-        let w = state.sugar_remaining[j] / (dist * dist).max(1.0e-6);
+        let e_sugar = sample_land_e(world, state.sugar_x[j], state.sugar_y[j]).unwrap_or(0.0);
+        let falloff = attract_elevation_falloff(e_sugar, p);
+        let w = (state.sugar_remaining[j] / (dist * dist).max(1.0e-6)) * falloff;
         sx += (dx / dist) * w;
         sy += (dy / dist) * w;
         sw += w;
@@ -132,7 +148,7 @@ fn phase1_search_and_anastomosis(state: &mut NetState, world: &World, p: &NetPar
         let (fx, fy) = (state.nodes[ti].x, state.nodes[ti].y);
 
         // 探索方向: 誘引(重み付き) と ランダム を w_rand でブレンド。
-        let attract = attractor_dir(state, ti, p);
+        let attract = attractor_dir(state, ti, world, p);
         let raw_ang = state.rng.next_f64() * std::f64::consts::TAU;
         let (rdx, rdy) = (raw_ang.cos(), raw_ang.sin());
 

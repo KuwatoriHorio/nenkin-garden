@@ -762,3 +762,36 @@
     「山の砂糖を諦めてでも避ける」方針と netphys-003 accept2(ソフト=高標高砂糖に到達可)・§0(壁を作らない)との
     衝突を人間に諮る。露出制御自体は正しくモデル強化後に意味を持つため keep・コミット。
 ```
+
+```
+- iter: 32
+  task: netphys-005
+  hypothesis: render-net-003 実測で w_elev では登坂を止められない(砂糖が誘引半径40内だと誘引方向が支配的)。
+              誘引そのものを標高依存にし高標高(e>=e_hi)の砂糖への引力を強く減衰させれば、通常予算でも
+              高標高の砂糖を中央値で見捨てられる(ソフト=壁は作らない)。低〜中標高の餌連結は保つ。
+  diff_summary: |
+    src/netphys/step.rs: attract_elevation_falloff(e,p)=exp(-attract_e_falloff*(e-attract_e_hi)) (e<=e_hi は1.0・
+    falloff<=0 も1.0)。attractor_dir が &World を取り各砂糖の標高を sample、誘引重み(1/dist^2)に falloff を乗じる。
+    w_elev/c_elev/net_alpha 不変・ハード棄却なし(§0 壁禁止維持)。src/netphys/state.rs: NetParams に attract_e_hi(0.9)・
+    attract_e_falloff(200.0) 追加。tests/netphys_005.rs 新規4件。tests/netphys_003.rs: accept2 を人間承認のもと改定
+    (矛盾する「高標高の砂糖に到達」を除去→砂糖なし探索で e>=e_hi に到達しうる softness チェックへ・理由コメント)。
+    accept1/accept1_baseline は不変。
+  seeds: [1,42,1337]（S9部分集合・中央値）
+  invariants: pass  # netphys-001①②⑤⑥・002③④・003 accept1 緑。Jones/tree/analysis/render 全緑。67 passed/0 failed。
+  metrics: |
+    ①高標高砂糖(d=18,e≈0.979)を既定で中央値 連結せず=見捨てる。§7 exemplary: falloff=0 で連結=赤→既定で緑。
+    ②低〜中標高砂糖(netphys-001②の hx+12,hy: e≈0.712)は連結。③砂糖なし探索3000tickで e>=0.9 に到達=壁でない。
+    e_hi=0.9 は netphys-003 accept1 の高標高ターゲット(実測0.873・保護テストで不変)と netphys-005 対象(0.979)の
+    間に設定=山頂のみ見捨て中腹は誘引。falloff=200 は sweep(45弱/200で2/3切断/400,800飽和)で最小安定値。
+    netphys-001②の砂糖標高0.712/0.012 を実測し e_hi 未満を確認(連結維持)。探索用 explore_e.rs は削除。
+  goldens_updated: |
+    tests/netphys_003.rs accept2 を人間承認(AskUserQuestion)で改定=意図的なゴールデン更新(§7準拠・理由明記)。
+    「高標高砂糖を諦めてでも避ける」方針転換に伴う。accept1/baseline・他 netphys 受け入れは不変。
+  models: { orchestrator: opus, implement: sonnet(nenkin-implementer), verify: opus(独立精読+再実行), record: opus }
+  decision: keep
+  note: |
+    render-net-003 の限界(誘引が支配的)をモデル側で解決。誘引を標高依存化=高標高の餌への引力を減衰。ソフト厳守
+    (weight 変更のみ・movement 壁化せず)。人間確定: 強いソフト忌避・accept2 改定承認・低中標高連結維持。
+    含意: 見捨てるのは e>=0.9(ほぼ山頂)のみ・中腹(0.7〜0.9)は従来通り誘引(0.873 を動かすと netphys-003 accept1 を
+    壊すための制約)。中腹まで避けたいなら accept1 再確認を伴う追加調整。demo 反映(wasm 再生成)は本 iter で実施。
+```
