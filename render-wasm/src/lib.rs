@@ -651,6 +651,14 @@ impl NetSim {
         self.params.period_n = clamped;
     }
 
+    /// 実行中 NetSim の標高忌避の強さ `w_elev` を実行時に変更する（render-net-003・観察用コントロール）。
+    /// `src/netphys/state.rs` の既定値（2.0）・`netphys_step` の力学は変えない（読み替えのみ）。
+    /// `v` は 0.0〜8.0 にクランプ（負値は 0＝方向バイアス無し、上限8で壁化を避ける）。
+    /// `set_period_n`/`set_collect_rate`/`set_w_rand` と同型（読むだけ＋params書換のみ・次 tick から反映）。
+    pub fn set_w_elev(&mut self, v: f64) {
+        self.params.w_elev = v.clamp(0.0, 8.0);
+    }
+
     /// 現在 State を RGBA バッファへ地形（陸/海）のみ描画する（trail 場は無い）。
     /// State は読むだけ・非侵襲（`TreeSim::render` と同型）。
     pub fn render(&mut self) {
@@ -1083,6 +1091,35 @@ mod tests {
         let mut y = NetSim::new_net(7);
         x.set_period_n(18.0);
         y.set_period_n(18.0);
+        for _ in 0..60 {
+            x.step();
+            y.step();
+        }
+        assert_eq!(x.net_state_hash_hex(), y.net_state_hash_hex());
+    }
+
+    #[test]
+    fn set_w_elev_updates_params_and_is_non_invasive_and_deterministic() {
+        let mut a = NetSim::new_net(42);
+        // 既定は 2.0（src/netphys/state.rs の既定値・変更していないことの確認）。
+        assert_eq!(a.params.w_elev, 2.0);
+        let h = a.net_state_hash_hex();
+        a.set_w_elev(4.0);
+        assert_eq!(a.params.w_elev, 4.0);
+        // setter 呼び出し自体は state を書き換えない（読むだけ・非侵襲）。
+        assert_eq!(a.net_state_hash_hex(), h);
+
+        // クランプ: 下限0（負は0に）・上限8（それ以上は8に）。
+        a.set_w_elev(-5.0);
+        assert_eq!(a.params.w_elev, 0.0);
+        a.set_w_elev(9999.0);
+        assert_eq!(a.params.w_elev, 8.0);
+
+        // 非侵襲・決定性: 同一 seed・同一操作列・同一 w_elev → 同一 net_state_hash。
+        let mut x = NetSim::new_net(7);
+        let mut y = NetSim::new_net(7);
+        x.set_w_elev(4.0);
+        y.set_w_elev(4.0);
         for _ in 0..60 {
             x.step();
             y.step();

@@ -163,6 +163,16 @@ export class NetSim {
         wasm.netsim_set_period_n(this.__wbg_ptr, v);
     }
     /**
+     * 実行中 NetSim の標高忌避の強さ `w_elev` を実行時に変更する（render-net-003・観察用コントロール）。
+     * `src/netphys/state.rs` の既定値（2.0）・`netphys_step` の力学は変えない（読み替えのみ）。
+     * `v` は 0.0〜8.0 にクランプ（負値は 0＝方向バイアス無し、上限8で壁化を避ける）。
+     * `set_period_n`/`set_collect_rate`/`set_w_rand` と同型（読むだけ＋params書換のみ・次 tick から反映）。
+     * @param {number} v
+     */
+    set_w_elev(v) {
+        wasm.netsim_set_w_elev(this.__wbg_ptr, v);
+    }
+    /**
      * 1 tick 進める。保留中の砂糖 op を tick 境界で適用してから netphys_step する（決定性）。
      */
     step() {

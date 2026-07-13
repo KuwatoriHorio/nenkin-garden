@@ -733,3 +733,32 @@
     §0 の動詞不変。再生速度(speed=実時間あたりtick数)とは別=consolidation 間隔である旨をラベルで明示。既存
     demo/demo-tree・決定性契約は無変更。
 ```
+
+```
+- iter: 31
+  task: render-net-003
+  hypothesis: netphys-003 実装済みの w_elev(方向バイアス・既定2.0) をデモにスライダー露出すれば、
+              低地選好の強さをライブ調整でき「もっと強く避ける」を初期値4.0で満たせる。
+  diff_summary: |
+    render-wasm/src/lib.rs: NetSim::set_w_elev(v:f64) 追加（v.clamp(0,8) を params.w_elev へ書くだけ・
+    set_period_n と同型の非侵襲）。native test 1件追加（既定2.0・更新・呼出でhash不変・クランプ-5→0/9999→8・
+    決定性）。docs/demo-net/index.html: 「標高忌避」レンジ(min0/max8/step0.5/初期4)+現在値、input で
+    set_w_elev、fresh() で reset 時も値保持(Number.isNaN ガードで0を尊重)。render_wasm.js/.d.ts/wasm 再生成。
+  seeds: n/a（露出・決定性は net_state_hash 契約で担保）
+  invariants: pass  # netphys 力学・NetParams 既定(w_elev=2.0)不変。全スイート緑・render-wasm 19緑(新1)。
+  metrics: |
+    render-wasm native 19 passed(新 set_w_elev 含む)。全スイート緑・失敗0。ブラウザ実測: スライダー
+    (min0/max8/初期4)存在・input で label 更新・reset後も値保持・set_w_elev(0)/(9999)クランプ・エラー無し。
+    決定性: 同一seed/w_elev で hash 一致。
+  goldens_updated: none  # 露出のみ。netphys 力学・既定・受け入れ不変。人間所有未編集。
+  models: { orchestrator: opus, implement: sonnet(nenkin-implementer), verify: opus(独立精読+再実行+ブラウザ実測), record: opus }
+  decision: keep
+  note: |
+    【重要・正直な限界】スライダーは機構的に正しく動くが、ブラウザ実測で「もっと強く避ける」目的は達成できて
+    いない: 山(明るさ435)に砂糖を置くと w_elev=0/4/8 で山付近ノード数 12/11/12・最高到達標高 448 で不変
+    ＝最大8でも登坂を止められない。原因: (1)砂糖が誘引半径40内だと誘引方向が支配的で w_elev 加算項が埋もれる、
+    (2)方向バイアスがソフトで弱く高値で飽和。netphys-003 accept1 が緑なのは高/低ターゲットへの構造質量~11%差
+    という微差を捉えるのみで可視的忌避ではない。真の強化はモデル変更(netphys-005)が必要＝別途 §8 で
+    「山の砂糖を諦めてでも避ける」方針と netphys-003 accept2(ソフト=高標高砂糖に到達可)・§0(壁を作らない)との
+    衝突を人間に諮る。露出制御自体は正しくモデル強化後に意味を持つため keep・コミット。
+```
