@@ -795,3 +795,32 @@
     含意: 見捨てるのは e>=0.9(ほぼ山頂)のみ・中腹(0.7〜0.9)は従来通り誘引(0.873 を動かすと netphys-003 accept1 を
     壊すための制約)。中腹まで避けたいなら accept1 再確認を伴う追加調整。demo 反映(wasm 再生成)は本 iter で実施。
 ```
+
+```
+- iter: 33
+  task: netphys-006
+  hypothesis: forage(餌探索・標高忌避)を残したまま放射スポーク(w_radial)＋同心リング(ring_period/ring_reach)を
+              加算的に重ねれば、餌や地形で歪んだ半対称の蜘蛛の巣状の網を作れる(B案)。新パラメータ既定オフで
+              netphys-001〜005 は無傷。
+  diff_summary: |
+    src/netphys/step.rs: phase1 の中心方向ブレンドに +w_radial*r_hat(ホームから外向き単位ベクトル)を両分岐に加算
+    (w_radial=0 で厳密0=後方互換)。新 phase2_ring: ring_period>0 かつ tick%ring_period==0 で各前線ノードから接線
+    (r_hat±90°回転・乱数不使用)へ ring_reach の probe を出し近傍の別ノードと融合してリング辺(ループ)。新規ノードは
+    作らず edge_cap で有界・anastomosis と同じ質量会計(保存則維持)・state.rng 不消費(Phase1 引き順不変)。
+    netphys_step で tick 加算後 ring_period>0 && tick%ring_period==0 のとき phase2_ring→consolidation。
+    src/netphys/state.rs: NetParams に w_radial(0.0)・ring_period(0)・ring_reach(6.0) 追加=既定オフ。
+    tests/netphys_006.rs 新規8件。探索用 explore_web.rs は削除。
+  seeds: [1,42,1337]（S9部分集合・中央値）
+  invariants: pass  # 既定オフで netphys-001〜005・Jones/tree/analysis/render 全緑。75 passed/0 failed。
+  metrics: |
+    web構成(w_radial=2/ring_period=6/ring_reach=10)で: ①放射整列|cos|中央値 0.62(w_radial=0)→0.79(1.28×,>1.15margin)、
+    ②リング辺 2(ring_period=0)→11(5.5×,>2.0margin)・冗長度≈40(>1=ループ)、③forage併存: 高標高砂糖(e≈0.979)
+    [0,0,0]見捨て・中標高(e≈0.712)[1,1,1]連結。各要素を単一off で分離比較(red→green)。有界(cap内)・既定オフ後方互換。
+  goldens_updated: none  # 新パラメータ既定オフ。netphys-001〜005 既存受け入れ・既定 bit不変。人間所有未編集。
+  models: { orchestrator: opus, implement: sonnet(nenkin-implementer), verify: opus(独立精読+再実行), record: opus }
+  decision: keep
+  note: |
+    B案(forage に蜘蛛の巣バイアス)。放射+同心リングを加算・既定オフで既存挙動/テスト無傷。決定論厳守(接線probeは
+    算術・PRNG不消費)。実物の粘菌は蜘蛛の巣を作らない様式化バリアント。デモで見せるにはパラメータ有効化=後続の
+    render-net(トグル/スライダー露出)が要る(本 iter はヘッドレス+テストのみ・demo/wasm 未反映)。
+```

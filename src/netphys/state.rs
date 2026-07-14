@@ -99,6 +99,16 @@ pub struct NetParams {
     /// では3シード中央値で連結してしまう(赤)。200 以上で3シード中2つが非連結に転じ中央値で
     /// 見捨てる(緑)側へ安定（400/800でも同じ内訳＝飽和）。200を採用（過剰な値を避ける）。
     pub attract_e_falloff: f64,
+    /// netphys-006: 放射スポークバイアス係数。探索方向の合成ベクトルに
+    /// `+ w_radial * r_hat`（`r_hat` = (node − home) の単位ベクトル、home=ノード0の座標）を
+    /// 加算する。0なら加算量は厳密に0（従来の探索方向決定と完全一致・後方互換の既定）。
+    pub w_radial: f64,
+    /// netphys-006: 同心リング形成の周期（tick）。0＝オフ（既定・後方互換）。`>0` のとき、
+    /// 周期ごとに各前線ノードから接線（円周）方向へ `ring_reach` の probe を出し、近傍の
+    /// 別ノードと融合してリング辺（ループ）を作る。乱数は使わない（決定的な算術のみ）。
+    pub ring_period: u64,
+    /// netphys-006: 同心リング probe の到達距離。`ring_period=0` のときは未使用。
+    pub ring_reach: f64,
 }
 
 impl Default for NetParams {
@@ -140,6 +150,11 @@ impl Default for NetParams {
             fan_spread: 0.35,
             attract_e_hi: 0.9,
             attract_e_falloff: 200.0,
+            // netphys-006: 既定オフ（後方互換）。蜘蛛の巣構成はテスト/デモ側で個別に
+            // w_radial>0・ring_period>0・ring_reach>0 を設定する。
+            w_radial: 0.0,
+            ring_period: 0,
+            ring_reach: 6.0,
         }
     }
 }

@@ -141,6 +141,9 @@ fn phase1_search_and_anastomosis(state: &mut NetState, world: &World, p: &NetPar
 
     let mut new_frontier: Vec<usize> = Vec::with_capacity(order.len());
 
+    // netphys-006: 放射スポークバイアスの中心（ホーム=ノード0の座標）。乱数不使用・決定的。
+    let (hx, hy) = world.default_home(p.e_lo);
+
     for ti in order {
         if ti >= state.nodes.len() {
             continue; // consolidation 等で消えた前線idは無視(安全弁)
@@ -157,10 +160,17 @@ fn phase1_search_and_anastomosis(state: &mut NetState, world: &World, p: &NetPar
         let (gex, gey) = elevation_gradient(world, fx, fy, p.search_step);
         let (bias_x, bias_y) = (-p.w_elev * gex, -p.w_elev * gey);
 
+        // netphys-006: ホームから外向きの半径方向 r_hat への放射スポークバイアス。
+        // w_radial=0 なら加算量は厳密に0（後方互換）。ホーム自身(距離0)では無バイアス。
+        let (rvx, rvy) = (fx - hx, fy - hy);
+        let rvn = (rvx * rvx + rvy * rvy).sqrt();
+        let (rhat_x, rhat_y) = if rvn > 1.0e-9 { (rvx / rvn, rvy / rvn) } else { (0.0, 0.0) };
+        let (radial_x, radial_y) = (p.w_radial * rhat_x, p.w_radial * rhat_y);
+
         let dir = match attract {
             Some((adx, ady, aw)) => {
-                let bx = p.w_rand * rdx + aw * adx + bias_x;
-                let by = p.w_rand * rdy + aw * ady + bias_y;
+                let bx = p.w_rand * rdx + aw * adx + bias_x + radial_x;
+                let by = p.w_rand * rdy + aw * ady + bias_y + radial_y;
                 let n = (bx * bx + by * by).sqrt();
                 if n <= 1.0e-9 {
                     None
@@ -170,8 +180,8 @@ fn phase1_search_and_anastomosis(state: &mut NetState, world: &World, p: &NetPar
             }
             None => {
                 if p.w_rand > 0.0 {
-                    let bx = rdx + bias_x;
-                    let by = rdy + bias_y;
+                    let bx = rdx + bias_x + radial_x;
+                    let by = rdy + bias_y + radial_y;
                     let n = (bx * bx + by * by).sqrt();
                     if n <= 1.0e-9 {
                         None
@@ -279,6 +289,75 @@ fn phase1_search_and_anastomosis(state: &mut NetState, world: &World, p: &NetPar
     new_frontier.sort_unstable();
     new_frontier.dedup();
     state.frontier = new_frontier;
+}
+
+/// netphys-006: Phase2b（同心リング形成・周期 `ring_period` tick ごと）。各前線ノード(id昇順)から
+/// ホーム中心の接線（円周）方向（`r_hat` を ±90° 回転）へ `ring_reach` の probe を出し、
+/// 近傍(fusion_dist以内)の別ノード（自身・既に隣接済みを除く）と融合してリング辺(ループ)を作る。
+/// 決定論厳守: 乱数を一切使わない算術のみ（`state.rng` を消費しない・Phase1 の引き順に影響しない）。
+/// `ring_period<=0` または `ring_reach<=0` なら何もしない（既定オフ・後方互換）。
+fn phase2_ring(state: &mut NetState, world: &World, p: &NetParams) {
+    if p.ring_period == 0 || p.ring_reach <= 0.0 {
+        return;
+    }
+    let (hx, hy) = world.default_home(p.e_lo);
+    let mut order = state.frontier.clone();
+    order.sort_unstable();
+    order.dedup();
+
+    for ti in order {
+        if ti >= state.nodes.len() {
+            continue;
+        }
+        if state.edges.len() >= p.edge_cap {
+            break; // 有界性: edge_cap 到達で打ち切り（新規ノードは作らないため node_cap は無関係）
+        }
+        let (fx, fy) = (state.nodes[ti].x, state.nodes[ti].y);
+        let (rvx, rvy) = (fx - hx, fy - hy);
+        let rvn = (rvx * rvx + rvy * rvy).sqrt();
+        if rvn <= 1.0e-9 {
+            continue; // ホーム自身: 接線方向が定義できないためスキップ
+        }
+        let (rhat_x, rhat_y) = (rvx / rvn, rvy / rvn);
+        // r_hat を ±90° 回転した2方向（乱数不使用の決定的な算術）。
+        for (tdx, tdy) in [(-rhat_y, rhat_x), (rhat_y, -rhat_x)] {
+            if state.edges.len() >= p.edge_cap {
+                break;
+            }
+            let probe_x = fx + tdx * p.ring_reach;
+            let probe_y = fy + tdy * p.ring_reach;
+            let e_target = match sample_land_e(world, probe_x, probe_y) {
+                Some(e) => e,
+                None => continue, // 海/範囲外は棄却（境界不変条件）
+            };
+            let fd2 = p.fusion_dist * p.fusion_dist;
+            let mut nearest: Option<(usize, f64)> = None;
+            for (nid, nd) in state.nodes.iter().enumerate() {
+                if nid == ti || edge_exists(&state.edges, ti, nid) {
+                    continue;
+                }
+                let d2 = dist2(probe_x, probe_y, nd.x, nd.y);
+                if d2 <= fd2 {
+                    if nearest.map(|(_, bd)| d2 < bd).unwrap_or(true) {
+                        nearest = Some((nid, d2));
+                    }
+                }
+            }
+            if let Some((nid, d2)) = nearest {
+                let actual_len = d2.sqrt().max(1.0e-6);
+                let structural = p.d0 * actual_len;
+                let tax = structural * p.c_elev * e_target;
+                let total_cost = structural + tax;
+                if state.free_budget < total_cost {
+                    continue; // 予算不足でこの probe のみ棄却
+                }
+                state.free_budget -= total_cost;
+                state.consumed_total += tax;
+                let (a, b) = if ti <= nid { (ti, nid) } else { (nid, ti) };
+                state.edges.push(NEdge { a, b, d: p.d0, l: actual_len });
+            }
+        }
+    }
 }
 
 /// 砂糖回収（id 昇順・全ノード走査）。
@@ -507,6 +586,10 @@ pub fn netphys_step(state: &mut NetState, world: &World, p: &NetParams, ops: &[O
     remove_depleted_sugar(state);
 
     state.tick += 1;
+
+    if p.ring_period > 0 && state.tick % p.ring_period == 0 {
+        phase2_ring(state, world, p);
+    }
 
     if p.period_n > 0 && state.tick % p.period_n == 0 {
         phase3_consolidation(state, world, p);
