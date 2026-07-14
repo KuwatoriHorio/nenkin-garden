@@ -824,3 +824,29 @@
     算術・PRNG不消費)。実物の粘菌は蜘蛛の巣を作らない様式化バリアント。デモで見せるにはパラメータ有効化=後続の
     render-net(トグル/スライダー露出)が要る(本 iter はヘッドレス+テストのみ・demo/wasm 未反映)。
 ```
+
+```
+- iter: 34
+  task: render-net-004
+  hypothesis: netphys-006 の w_radial/ring_period/ring_reach(既定オフ) をデモにスライダー露出し初期値を web構成に
+              すれば、起動時から蜘蛛の巣(放射スポーク＋同心リング)をライブで見て調整できる。
+  diff_summary: |
+    render-wasm/src/lib.rs: NetSim に set_w_radial(clamp0-8)・set_ring_period(round&clamp0-60 u64)・
+    set_ring_reach(clamp1-30) を追加(set_period_n/set_w_elev と同型・params 読み替えのみ・非侵襲)。native test 3件
+    追加(既定0/0/6・更新・呼出でhash不変・クランプ・決定性)。docs/demo-net/index.html: 放射/リング周期/リング距離の
+    3スライダー(初期=web構成 2/6/10)+現在値、各 input で対応 setter、fresh() で reset 時も値保持(ring_period は
+    Number.isNaN ガードで0=off を尊重)。render_wasm.js/.d.ts/wasm 再生成。
+  seeds: n/a（露出・決定性は net_state_hash 契約で担保）
+  invariants: pass  # netphys 力学・NetParams 既定(全オフ)不変。render-wasm 22緑(新3)・netphys/Jones/tree/analysis 全緑。
+  metrics: |
+    ブラウザ実測(出荷wasm seed42 400tick): 3スライダー(初期 wradial2/ringp6/ringr10)存在・input で label 更新・
+    reset後も値保持(ringp 20→20)。web構成で放射整列|cos| 0.61→0.82。リング要素を分離(放射on固定・中央値[1,42,1337]):
+    リング辺 ringoff=2 → ringon(web構成)=11(netphys_006 accept2 と一致)。決定的hash・エラー無し。
+  goldens_updated: none  # 露出のみ。netphys 力学・既定・受け入れ不変。人間所有未編集。
+  models: { orchestrator: opus, implement: sonnet(nenkin-implementer), verify: opus(独立精読+再実行+ブラウザ実測), record: opus }
+  decision: keep
+  note: |
+    render-net-002/003 と同型の純粋な設定露出(3 setter)。デモ初期値=web構成(人間確定)で起動時から蜘蛛の巣。
+    NetParams 既定(全オフ=テストの正)は不変・reset で値保持。放射スポークが優勢で同心リングは~11本(スライダーで
+    ring_period を下げれば増やせる)。demo は本 iter で wasm 反映。
+```

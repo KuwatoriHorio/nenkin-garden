@@ -163,6 +163,26 @@ export class NetSim {
         wasm.netsim_set_period_n(this.__wbg_ptr, v);
     }
     /**
+     * 実行中 NetSim の同心リング probe の周期 `ring_period` を実行時に変更する
+     * （render-net-004・観察用コントロール）。`src/netphys/state.rs` の既定値（0＝オフ）・
+     * `netphys_step` の力学は変えない（読み替えのみ）。`v` は 0〜60 にクランプ整数化
+     * （0 はリング機能オフ）。`set_period_n`/`set_w_elev` と同型。
+     * @param {number} v
+     */
+    set_ring_period(v) {
+        wasm.netsim_set_ring_period(this.__wbg_ptr, v);
+    }
+    /**
+     * 実行中 NetSim の同心リング probe の到達距離 `ring_reach` を実行時に変更する
+     * （render-net-004・観察用コントロール）。`src/netphys/state.rs` の既定値（6.0）・
+     * `netphys_step` の力学は変えない（読み替えのみ）。`v` は 1.0〜30.0 にクランプ。
+     * `set_period_n`/`set_w_elev` と同型（読むだけ＋params書換のみ・次 tick から反映）。
+     * @param {number} v
+     */
+    set_ring_reach(v) {
+        wasm.netsim_set_ring_reach(this.__wbg_ptr, v);
+    }
+    /**
      * 実行中 NetSim の標高忌避の強さ `w_elev` を実行時に変更する（render-net-003・観察用コントロール）。
      * `src/netphys/state.rs` の既定値（2.0）・`netphys_step` の力学は変えない（読み替えのみ）。
      * `v` は 0.0〜8.0 にクランプ（負値は 0＝方向バイアス無し、上限8で壁化を避ける）。
@@ -171,6 +191,17 @@ export class NetSim {
      */
     set_w_elev(v) {
         wasm.netsim_set_w_elev(this.__wbg_ptr, v);
+    }
+    /**
+     * 実行中 NetSim の放射スポークバイアスの強さ `w_radial` を実行時に変更する
+     * （render-net-004・観察用コントロール）。`src/netphys/state.rs` の既定値（0.0）・
+     * `netphys_step` の力学は変えない（読み替えのみ）。`v` は 0.0〜8.0 にクランプ
+     * （負値は 0＝バイアス無し、上限8で壁化を避ける）。
+     * `set_period_n`/`set_w_elev` と同型（読むだけ＋params書換のみ・次 tick から反映）。
+     * @param {number} v
+     */
+    set_w_radial(v) {
+        wasm.netsim_set_w_radial(this.__wbg_ptr, v);
     }
     /**
      * 1 tick 進める。保留中の砂糖 op を tick 境界で適用してから netphys_step する（決定性）。

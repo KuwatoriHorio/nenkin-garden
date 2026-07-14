@@ -54,6 +54,9 @@
     <label class="stat">速度 <input id="speed" type="range" min="1" max="120" value="20"> <span id="spd">20</span>/s</label>
     <label class="stat">周期(刈込) <input id="period" type="range" min="1" max="120" value="12"> <span id="prd">12</span> tick</label>
     <label class="stat" title="大きいほど低地を強く好む／0で方向バイアス無し（コスト/実効抵抗のみ）">標高忌避 <input id="welev" type="range" min="0" max="8" step="0.5" value="4"> <span id="wev">4</span></label>
+    <label class="stat" title="大きいほどホーム中心から放射状（スポーク）に整列／0でバイアス無し">放射スポーク <input id="wradial" type="range" min="0" max="8" step="0.5" value="2"> <span id="wrad">2</span></label>
+    <label class="stat" title="同心リング（周期0でオフ）：この tick 数ごとに前線から円周方向へ探索して繋げる">リング周期 <input id="ringp" type="range" min="0" max="60" step="1" value="6"> <span id="rgp">6</span> tick</label>
+    <label class="stat" title="同心リング probe の到達距離">リング距離 <input id="ringr" type="range" min="1" max="30" step="1" value="10"> <span id="rgr">10</span></label>
     <button id="reset">↺ リセット</button>
     <label class="stat">seed <input id="seed" type="number" value="42" style="width:5em"></label>
   </div>
@@ -85,6 +88,12 @@ const REMOVE_RADIUS = 3.0;
 
 const DEFAULT_PERIOD_N = 12; // src/netphys/state.rs の NetParams::period_n 既定値と一致
 const DEFAULT_W_ELEV = 4.0; // デモUIの初期表示値（NetParams::w_elev の既定2.0とは別・「もっと強く避ける」を初期表示で満たす）
+// render-net-004: 蜘蛛の巣（放射スポーク＋同心リング）系のデモUI初期値＝人間確定の「web構成」
+// （起動時から蜘蛛の巣が見える）。NetParams 既定（w_radial=0/ring_period=0/ring_reach=6＝全オフ）は
+// src/netphys/state.rs のまま変えていない・このデモの fresh() が各 setter で明示的に上書きするのみ。
+const DEFAULT_W_RADIAL = 2.0;
+const DEFAULT_RING_PERIOD = 6;
+const DEFAULT_RING_REACH = 10.0;
 
 function fresh(seed){
   sim = NetSim.new_net(seed >>> 0);
@@ -105,6 +114,26 @@ function fresh(seed){
   const welev = Number.isNaN(welevParsed) ? DEFAULT_W_ELEV : welevParsed;
   if (welevEl) document.getElementById('wev').textContent = welev;
   sim.set_w_elev(welev);
+  // reset/seed 再生成時も蜘蛛の巣3スライダー（放射・リング周期・リング距離）の値は保持し、
+  // 現在値を新しい sim に適用する（welev/period と同じ挙動）。ring_period は 0 が有効値
+  // （リングoff）なので `|| DEFAULT` ではなく Number.isNaN ガードで 0 を尊重する。
+  const wradialEl = document.getElementById('wradial');
+  const wradialParsed = wradialEl ? parseFloat(wradialEl.value) : NaN;
+  const wradial = Number.isNaN(wradialParsed) ? DEFAULT_W_RADIAL : wradialParsed;
+  if (wradialEl) document.getElementById('wrad').textContent = wradial;
+  sim.set_w_radial(wradial);
+
+  const ringpEl = document.getElementById('ringp');
+  const ringpParsed = ringpEl ? parseInt(ringpEl.value, 10) : NaN;
+  const ringp = Number.isNaN(ringpParsed) ? DEFAULT_RING_PERIOD : ringpParsed;
+  if (ringpEl) document.getElementById('rgp').textContent = ringp;
+  sim.set_ring_period(ringp);
+
+  const ringrEl = document.getElementById('ringr');
+  const ringrParsed = ringrEl ? parseFloat(ringrEl.value) : NaN;
+  const ringr = Number.isNaN(ringrParsed) ? DEFAULT_RING_REACH : ringrParsed;
+  if (ringrEl) document.getElementById('rgr').textContent = ringr;
+  sim.set_ring_reach(ringr);
 }
 
 // 地形（陸/海）背景を描く。網モデルには trail 場が無いので地形色のみ（NetSim.render は非侵襲）。
@@ -235,6 +264,21 @@ document.getElementById('welev').addEventListener('input', e=>{
   const v = +e.target.value;
   document.getElementById('wev').textContent = v;
   sim.set_w_elev(v); // 標高忌避の強さ。大きいほど低地を強く好む・0で方向バイアス無し（次tickから反映・決定的）。
+});
+document.getElementById('wradial').addEventListener('input', e=>{
+  const v = +e.target.value;
+  document.getElementById('wrad').textContent = v;
+  sim.set_w_radial(v); // 放射スポークバイアスの強さ。大きいほどホーム中心の放射方向へ整列・0でバイアス無し（次tickから反映・決定的）。
+});
+document.getElementById('ringp').addEventListener('input', e=>{
+  const v = +e.target.value;
+  document.getElementById('rgp').textContent = v;
+  sim.set_ring_period(v); // 同心リング probe の周期。0でリングオフ（次tickから反映・決定的）。
+});
+document.getElementById('ringr').addEventListener('input', e=>{
+  const v = +e.target.value;
+  document.getElementById('rgr').textContent = v;
+  sim.set_ring_reach(v); // 同心リング probe の到達距離（次tickから反映・決定的）。
 });
 document.getElementById('reset').addEventListener('click', ()=>{
   fresh(+document.getElementById('seed').value || 0);

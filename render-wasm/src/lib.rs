@@ -659,6 +659,31 @@ impl NetSim {
         self.params.w_elev = v.clamp(0.0, 8.0);
     }
 
+    /// 実行中 NetSim の放射スポークバイアスの強さ `w_radial` を実行時に変更する
+    /// （render-net-004・観察用コントロール）。`src/netphys/state.rs` の既定値（0.0）・
+    /// `netphys_step` の力学は変えない（読み替えのみ）。`v` は 0.0〜8.0 にクランプ
+    /// （負値は 0＝バイアス無し、上限8で壁化を避ける）。
+    /// `set_period_n`/`set_w_elev` と同型（読むだけ＋params書換のみ・次 tick から反映）。
+    pub fn set_w_radial(&mut self, v: f64) {
+        self.params.w_radial = v.clamp(0.0, 8.0);
+    }
+
+    /// 実行中 NetSim の同心リング probe の周期 `ring_period` を実行時に変更する
+    /// （render-net-004・観察用コントロール）。`src/netphys/state.rs` の既定値（0＝オフ）・
+    /// `netphys_step` の力学は変えない（読み替えのみ）。`v` は 0〜60 にクランプ整数化
+    /// （0 はリング機能オフ）。`set_period_n`/`set_w_elev` と同型。
+    pub fn set_ring_period(&mut self, v: f64) {
+        self.params.ring_period = v.round().clamp(0.0, 60.0) as u64;
+    }
+
+    /// 実行中 NetSim の同心リング probe の到達距離 `ring_reach` を実行時に変更する
+    /// （render-net-004・観察用コントロール）。`src/netphys/state.rs` の既定値（6.0）・
+    /// `netphys_step` の力学は変えない（読み替えのみ）。`v` は 1.0〜30.0 にクランプ。
+    /// `set_period_n`/`set_w_elev` と同型（読むだけ＋params書換のみ・次 tick から反映）。
+    pub fn set_ring_reach(&mut self, v: f64) {
+        self.params.ring_reach = v.clamp(1.0, 30.0);
+    }
+
     /// 現在 State を RGBA バッファへ地形（陸/海）のみ描画する（trail 場は無い）。
     /// State は読むだけ・非侵襲（`TreeSim::render` と同型）。
     pub fn render(&mut self) {
@@ -1120,6 +1145,93 @@ mod tests {
         let mut y = NetSim::new_net(7);
         x.set_w_elev(4.0);
         y.set_w_elev(4.0);
+        for _ in 0..60 {
+            x.step();
+            y.step();
+        }
+        assert_eq!(x.net_state_hash_hex(), y.net_state_hash_hex());
+    }
+
+    #[test]
+    fn set_w_radial_updates_params_and_is_non_invasive_and_deterministic() {
+        let mut a = NetSim::new_net(42);
+        // 既定は 0.0（src/netphys/state.rs の既定値・変更していないことの確認）。
+        assert_eq!(a.params.w_radial, 0.0);
+        let h = a.net_state_hash_hex();
+        a.set_w_radial(4.0);
+        assert_eq!(a.params.w_radial, 4.0);
+        // setter 呼び出し自体は state を書き換えない（読むだけ・非侵襲）。
+        assert_eq!(a.net_state_hash_hex(), h);
+
+        // クランプ: 下限0（負は0に）・上限8（それ以上は8に）。
+        a.set_w_radial(-5.0);
+        assert_eq!(a.params.w_radial, 0.0);
+        a.set_w_radial(9999.0);
+        assert_eq!(a.params.w_radial, 8.0);
+
+        // 非侵襲・決定性: 同一 seed・同一操作列・同一 w_radial → 同一 net_state_hash。
+        let mut x = NetSim::new_net(7);
+        let mut y = NetSim::new_net(7);
+        x.set_w_radial(2.0);
+        y.set_w_radial(2.0);
+        for _ in 0..60 {
+            x.step();
+            y.step();
+        }
+        assert_eq!(x.net_state_hash_hex(), y.net_state_hash_hex());
+    }
+
+    #[test]
+    fn set_ring_period_updates_params_and_is_non_invasive_and_deterministic() {
+        let mut a = NetSim::new_net(42);
+        // 既定は 0（src/netphys/state.rs の既定値・リングオフ・変更していないことの確認）。
+        assert_eq!(a.params.ring_period, 0);
+        let h = a.net_state_hash_hex();
+        a.set_ring_period(6.0);
+        assert_eq!(a.params.ring_period, 6);
+        // setter 呼び出し自体は state を書き換えない（読むだけ・非侵襲）。
+        assert_eq!(a.net_state_hash_hex(), h);
+
+        // クランプ: 下限0（負は0に・リングオフとして有効）・上限60（それ以上は60に）。
+        a.set_ring_period(-5.0);
+        assert_eq!(a.params.ring_period, 0);
+        a.set_ring_period(9999.0);
+        assert_eq!(a.params.ring_period, 60);
+
+        // 非侵襲・決定性: 同一 seed・同一操作列・同一 ring_period → 同一 net_state_hash。
+        let mut x = NetSim::new_net(7);
+        let mut y = NetSim::new_net(7);
+        x.set_ring_period(6.0);
+        y.set_ring_period(6.0);
+        for _ in 0..60 {
+            x.step();
+            y.step();
+        }
+        assert_eq!(x.net_state_hash_hex(), y.net_state_hash_hex());
+    }
+
+    #[test]
+    fn set_ring_reach_updates_params_and_is_non_invasive_and_deterministic() {
+        let mut a = NetSim::new_net(42);
+        // 既定は 6.0（src/netphys/state.rs の既定値・変更していないことの確認）。
+        assert_eq!(a.params.ring_reach, 6.0);
+        let h = a.net_state_hash_hex();
+        a.set_ring_reach(10.0);
+        assert_eq!(a.params.ring_reach, 10.0);
+        // setter 呼び出し自体は state を書き換えない（読むだけ・非侵襲）。
+        assert_eq!(a.net_state_hash_hex(), h);
+
+        // クランプ: 下限1（それ未満は1に）・上限30（それ以上は30に）。
+        a.set_ring_reach(-5.0);
+        assert_eq!(a.params.ring_reach, 1.0);
+        a.set_ring_reach(9999.0);
+        assert_eq!(a.params.ring_reach, 30.0);
+
+        // 非侵襲・決定性: 同一 seed・同一操作列・同一 ring_reach → 同一 net_state_hash。
+        let mut x = NetSim::new_net(7);
+        let mut y = NetSim::new_net(7);
+        x.set_ring_reach(10.0);
+        y.set_ring_reach(10.0);
         for _ in 0..60 {
             x.step();
             y.step();
